@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: parkbangla
+      POSTGRES_PASSWORD: parkbangla
+      POSTGRES_DB: parkbangla
+    ports:
+      - "5433:5432"
+    volumes:
+      - parkbangla_pg:/var/lib/postgresql/data
+
+volumes:
+  parkbangla_pg:
