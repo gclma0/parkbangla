@@ -12,6 +12,7 @@ import { WalletController } from './wallet.controller';
 import { AdminController } from './admin.controller';
 import { AuthGuard } from './auth.guard';
 import { UploadsController } from './uploads.controller';
+import { FcmService } from './fcm.service';
 
 @Module({
   imports: [
@@ -30,6 +31,6 @@ import { UploadsController } from './uploads.controller';
     AdminController,
     UploadsController,
   ],
-  providers: [PrismaService, AuthService, BookingsService, AuthGuard],
+  providers: [PrismaService, AuthService, BookingsService, AuthGuard, FcmService],
 })
 export class AppModule {}

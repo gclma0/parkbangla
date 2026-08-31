@@ -65,10 +65,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => SpotDetailPage(spotId: spot['id'] as String)));
   }
 
-  void _quickBook(Map<String, dynamic> spot) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => CheckoutPage(spot: spot)));
-  }
-
   void _showFilters() {
     final i = I18n(session.bn);
     showModalBottomSheet(
@@ -177,9 +173,19 @@ class _DiscoverPageState extends State<DiscoverPage> {
             children: [
               Text(i.discover, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
               const Spacer(),
-              TextButton(
+              TextButton.icon(
                 onPressed: () => setState(() => mapMode = !mapMode),
-                child: Text(mapMode ? i.cards : i.map, style: const TextStyle(fontWeight: FontWeight.w800, color: Pb.ink)),
+                style: TextButton.styleFrom(
+                  backgroundColor: Pb.yellow,
+                  foregroundColor: Pb.ink,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                icon: Icon(mapMode ? Icons.view_carousel : Icons.map, size: 18),
+                label: Text(
+                  mapMode ? i.cards : i.map,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -248,19 +254,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
           Expanded(
             child: mapMode ? _map() : Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: GestureDetector(
-                onTap: () {
-                  if (spots.isNotEmpty) {
-                    _open(spots.first);
-                  }
-                },
-                child: SpotDeck(
-                  spots: spots,
-                  bookLabel: i.book,
-                  skipLabel: i.skip,
-                  onBook: _quickBook,
-                  onSkip: (s) => setState(() => spots.remove(s)),
-                ),
+              child: SpotDeck(
+                spots: spots,
+                onTap: _open,
               ),
             ),
           ),

@@ -35,6 +35,9 @@ class PatchMeDto {
   @IsOptional()
   @IsString()
   dlDocUrl?: string;
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }
 
 @Controller()
@@ -73,6 +76,15 @@ export class UsersController {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+  }
+
+  @Post('notifications/:id/read')
+  async readNotification(@Req() req: { user: { id: string } }, @Param('id') id: string) {
+    await this.prisma.notification.updateMany({
+      where: { id, userId: req.user.id },
+      data: { read: true },
+    });
+    return { ok: true };
   }
 
   @Post('reports')

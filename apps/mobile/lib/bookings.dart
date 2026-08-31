@@ -41,67 +41,226 @@ class _BookingsPageState extends State<BookingsPage> {
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
     if (loading) return const Center(child: CircularProgressIndicator(color: Pb.yellow));
-    if (items.isEmpty) return Center(child: Text(i.t('No passes yet. Swipe a driveway.', 'এখনো কোনো পাস নেই।')));
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: items.length + 1,
-      itemBuilder: (ctx, n) {
-        if (n == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(i.bookings, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-          );
-        }
-        final b = items[n - 1];
-        final spot = Map<String, dynamic>.from(b['spot'] as Map? ?? {});
-        final photos = spot['photos'];
-        final img = photos is List && photos.isNotEmpty ? photos.first.toString() : null;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: ScaleTap(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CheckInPage(bookingId: b['id'] as String))),
-            child: Container(
-              height: 148,
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-              clipBehavior: Clip.antiAlias,
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 120,
-                    child: img == null ? Container(color: Pb.yellow) : Image.network(img, fit: BoxFit.cover),
+
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width > 768;
+
+    if (items.isEmpty) {
+      return Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.directions_car_outlined, size: 64, color: Pb.ink.withOpacity(0.2)),
+              const SizedBox(height: 16),
+              Text(
+                i.t('No passes yet.', 'এখনো কোনো পাস নেই।'),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                i.t('Swipe a driveway on the cards to book parking spots.', 'পার্কিং বুক করতে ড্রাইভওয়ে কার্ডগুলো সোয়াইপ করুন।'),
+                style: const TextStyle(color: Pb.muted, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          itemCount: items.length + 1,
+          itemBuilder: (ctx, n) {
+            if (n == 0) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Text(
+                  i.bookings,
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Pb.ink),
+                ),
+              );
+            }
+            final b = items[n - 1];
+            final spot = Map<String, dynamic>.from(b['spot'] as Map? ?? {});
+            final photos = spot['photos'];
+            final img = photos is List && photos.isNotEmpty ? photos.first.toString() : null;
+            final status = b['status']?.toString().toUpperCase() ?? '';
+
+            Color statusColor;
+            Color statusBg;
+            switch (status) {
+              case 'CONFIRMED':
+                statusColor = Colors.green[800]!;
+                statusBg = const Color(0xFFE8F5E9);
+                break;
+              case 'PENDING':
+                statusColor = const Color(0xFFB78103);
+                statusBg = const Color(0xFFFFF9C4);
+                break;
+              case 'ACTIVE':
+                statusColor = Colors.blue[800]!;
+                statusBg = const Color(0xFFE3F2FD);
+                break;
+              case 'COMPLETED':
+                statusColor = Pb.muted;
+                statusBg = const Color(0xFFECEFF1);
+                break;
+              default:
+                statusColor = Colors.red[800]!;
+                statusBg = const Color(0xFFFFEBEE);
+            }
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: ScaleTap(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => CheckInPage(bookingId: b['id'] as String)),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Pb.ink.withOpacity(0.06)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${spot['area'] ?? ''} · ${b['status']}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                          Text('${spot['address'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis),
-                          const Spacer(),
-                          Text('৳${b['amount']}  ·  PIN ${b['pin']}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                          if (session.isHost && b['status'] == 'PENDING')
-                            Row(
+                  clipBehavior: Clip.antiAlias,
+                  child: IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          width: isDesktop ? 160 : 110,
+                          child: img == null
+                              ? Container(
+                                  color: Pb.yellow.withOpacity(0.2),
+                                  child: const Icon(Icons.local_parking, size: 40, color: Pb.yellowDeep),
+                                )
+                              : Image.network(img, fit: BoxFit.cover),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                TextButton(
-                                  onPressed: () async {
-                                    await session.api.post('/bookings/${b['id']}/decide', {'approve': true});
-                                    _load();
-                                  },
-                                  child: const Text('Approve'),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        spot['area'] ?? '',
+                                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: statusBg,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: TextStyle(
+                                          color: statusColor,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_on_outlined, size: 14, color: Pb.ink.withOpacity(0.4)),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        spot['address'] ?? '',
+                                        style: const TextStyle(color: Pb.muted, fontSize: 12),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const Spacer(),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '৳${b['amount']}',
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.yellowDeep),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Pb.cream,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: Pb.ink.withOpacity(0.04)),
+                                      ),
+                                      child: Text(
+                                        'PIN ${b['pin']}',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Pb.ink),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (session.isHost && b['status'] == 'PENDING') ...[
+                                  const SizedBox(height: 12),
+                                  FilledButton.icon(
+                                    onPressed: () async {
+                                      try {
+                                        await session.api.post('/bookings/${b['id']}/decide', {'approve': true});
+                                        _load();
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                        }
+                                      }
+                                    },
+                                    icon: const Icon(Icons.check, size: 16),
+                                    label: const Text('Approve Pass'),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Pb.yellow,
+                                      foregroundColor: Pb.ink,
+                                      minimumSize: const Size.fromHeight(36),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(vertical: 0),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
-                        ],
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 }

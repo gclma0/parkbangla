@@ -4,14 +4,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class PbApi {
-  PbApi({this.baseUrl = 'http://localhost:3001', this.token});
+  PbApi({this.baseUrl = 'http://localhost:3001', this.token, this.activeRole});
 
   String baseUrl;
   String? token;
+  String? activeRole;
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
         if (token != null) 'Authorization': 'Bearer $token',
+        if (activeRole != null) 'x-active-role': activeRole!,
       };
 
   Uri _u(String path, [Map<String, String>? q]) =>

@@ -57,6 +57,7 @@ model User {
   id            String    @id @default(cuid())
   name          String
   phone         String    @unique
+  fcmToken      String?
   nidDocUrl     String?
   dlDocUrl      String?
   isAdmin       Boolean   @default(false)
@@ -230,6 +231,8 @@ model Notification {
   title     String
   body      String
   read      Boolean  @default(false)
+  bookingId String?
+  type      String?
   createdAt DateTime @default(now())
 }
 

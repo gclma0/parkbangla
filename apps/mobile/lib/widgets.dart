@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
+import 'i18n.dart';
+import 'session.dart';
 
 class YellowCta extends StatelessWidget {
   const YellowCta({super.key, required this.label, this.onPressed});
@@ -149,7 +151,7 @@ class PhotoCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: stamp == 'BOOK' ? Pb.stampGreen : Pb.stampSkip,
+                      color: stamp == 'NEXT' ? Pb.muted : Pb.stampSkip,
                       width: 4,
                     ),
                     borderRadius: BorderRadius.circular(8),
@@ -159,7 +161,7 @@ class PhotoCard extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: 28,
-                      color: stamp == 'BOOK' ? Pb.stampGreen : Pb.stampSkip,
+                      color: stamp == 'NEXT' ? Pb.muted : Pb.stampSkip,
                     ),
                   ),
                 ),
@@ -188,17 +190,11 @@ class SpotDeck extends StatefulWidget {
   const SpotDeck({
     super.key,
     required this.spots,
-    required this.onBook,
-    required this.onSkip,
-    required this.bookLabel,
-    required this.skipLabel,
+    required this.onTap,
   });
 
   final List<Map<String, dynamic>> spots;
-  final void Function(Map<String, dynamic>) onBook;
-  final void Function(Map<String, dynamic>) onSkip;
-  final String bookLabel;
-  final String skipLabel;
+  final void Function(Map<String, dynamic>) onTap;
 
   @override
   State<SpotDeck> createState() => _SpotDeckState();
@@ -213,11 +209,21 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
   double dx = 0;
   double dy = 0;
   bool _isAnimating = false;
+  int currentIndex = 0;
 
   late Animation<Offset> _offsetAnim;
   late Animation<double> _rotationAnim;
 
-  Map<String, dynamic>? get top => widget.spots.isEmpty ? null : widget.spots.first;
+  Map<String, dynamic>? get top => widget.spots.isEmpty ? null : widget.spots[currentIndex % widget.spots.length];
+
+  @override
+  void didUpdateWidget(covariant SpotDeck oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.spots.length != oldWidget.spots.length || 
+        (widget.spots.isNotEmpty && oldWidget.spots.isNotEmpty && widget.spots.first['id'] != oldWidget.spots.first['id'])) {
+      currentIndex = 0;
+    }
+  }
 
   @override
   void dispose() {
@@ -242,13 +248,8 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
     );
 
     _controller.forward(from: 0).then((_) {
-      final s = top;
-      if (s != null) {
-        if (right) {
-          widget.onBook(s);
-        } else {
-          widget.onSkip(s);
-        }
+      if (widget.spots.isNotEmpty) {
+        currentIndex = (currentIndex + 1) % widget.spots.length;
       }
       dx = 0;
       dy = 0;
@@ -262,7 +263,7 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
     _isAnimating = true;
 
     final startOffset = Offset(dx, dy);
-    final endOffset = Offset.zero;
+    const endOffset = Offset.zero;
     final startRot = dx / 420.0;
     const endRot = 0.0;
 
@@ -294,7 +295,7 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
       return const Center(child: Text('No spots nearby — try the map.'));
     }
 
-    final back = widget.spots.length > 1 ? widget.spots[1] : null;
+    final back = widget.spots.length > 1 ? widget.spots[(currentIndex + 1) % widget.spots.length] : null;
 
     return Column(
       children: [
@@ -311,8 +312,8 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
                 subtitle: '৳${top!['monthlyPrice']} / month · ${top!['covered'] == true ? 'Covered' : 'Open'}',
                 badge: top!['verified'] == true ? 'Verified' : null,
                 stamp: _isAnimating
-                    ? (_offsetAnim.value.dx > 40 ? 'BOOK' : (_offsetAnim.value.dx < -40 ? 'SKIP' : null))
-                    : (dx > 40 ? 'BOOK' : (dx < -40 ? 'SKIP' : null)),
+                    ? (_offsetAnim.value.dx.abs() > 40 ? 'NEXT' : null)
+                    : (dx.abs() > 40 ? 'NEXT' : null),
               );
 
               Widget animatedTopCard;
@@ -368,6 +369,11 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
                                 _snapBack();
                               }
                             },
+                      onTap: () {
+                        if (top != null) {
+                          widget.onTap(top!);
+                        }
+                      },
                       child: animatedTopCard,
                     ),
                   ),
@@ -378,30 +384,30 @@ class _SpotDeckState extends State<SpotDeck> with SingleTickerProviderStateMixin
         ),
         const SizedBox(height: 18),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             RoundAction(
               icon: Icons.close,
-              color: Pb.stampSkip,
+              color: Pb.muted,
+              size: 56,
               onTap: () => _swipe(false),
             ),
+            const SizedBox(width: 24),
             RoundAction(
-              icon: Icons.star_rounded,
+              icon: Icons.info_outline,
               color: Pb.yellowDeep,
-              size: 54,
+              size: 64,
               onTap: () {
-                if (top != null) widget.onBook(top!);
+                if (top != null) widget.onTap(top!);
               },
-            ),
-            RoundAction(
-              icon: Icons.favorite_rounded,
-              color: Pb.stampGreen,
-              onTap: () => _swipe(true),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Text('${widget.bookLabel} · ${widget.skipLabel}', style: const TextStyle(color: Pb.muted, fontSize: 12)),
+        Text(
+          I18n(session.bn).t('Swipe or tap to explore', 'খুঁজতে সোয়াইপ বা ট্যাপ করুন'),
+          style: const TextStyle(color: Pb.muted, fontSize: 12),
+        ),
       ],
     );
   }

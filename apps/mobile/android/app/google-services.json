@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "94633419383",
+    "project_id": "parkbangla-882ff",
+    "storage_bucket": "parkbangla-882ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:94633419383:android:dc3ded2c7b3efea81a5c72",
+        "android_client_info": {
+          "package_name": "com.parkbangla.parkbangla_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7rQXGsTODHHiJJH6kOjifWifIkjNBTSA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

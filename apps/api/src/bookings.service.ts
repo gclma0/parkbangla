@@ -2,10 +2,14 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { BookingStatus, BookingType } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { bookingsConflict, commissionOn } from './booking-rules';
+import { FcmService } from './fcm.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private fcm: FcmService,
+  ) {}
 
   async createPass(params: {
     renterId: string;
@@ -121,25 +125,36 @@ export class BookingsService {
           },
         });
       }
-      await tx.notification.create({
-        data: {
-          userId: spot.hostId,
-          title: status === BookingStatus.CONFIRMED ? 'New Commuter Pass' : 'Booking request',
-          body: `${renter.name} booked your spot at ${spot.address}`,
-        },
-      });
-      await tx.notification.create({
-        data: {
-          userId: params.renterId,
-          title: status === BookingStatus.CONFIRMED ? "It's a park!" : 'Request sent',
-          body:
-            status === BookingStatus.CONFIRMED
-              ? `Your pass at ${spot.area} is confirmed`
-              : 'Waiting for host approval',
-        },
-      });
       return booking;
     });
+
+    try {
+      const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
+      const spot = await this.prisma.parkingSpot.findUnique({ where: { id: params.spotId } });
+      if (renter && spot) {
+        await this.fcm.sendNotification({
+          userId: spot.hostId,
+          title: booking.status === BookingStatus.CONFIRMED ? 'New Commuter Pass' : 'Booking request',
+          body: `${renter.name} booked your spot at ${spot.address}`,
+          bookingId: booking.id,
+          type: booking.status === BookingStatus.CONFIRMED ? 'BOOKING_ACCEPTED' : 'BOOKING_REQUESTED',
+        });
+        await this.fcm.sendNotification({
+          userId: params.renterId,
+          title: booking.status === BookingStatus.CONFIRMED ? "It's a park!" : 'Request sent',
+          body:
+            booking.status === BookingStatus.CONFIRMED
+              ? `Your pass at ${spot.area} is confirmed`
+              : 'Waiting for host approval',
+          bookingId: booking.id,
+          type: booking.status === BookingStatus.CONFIRMED ? 'BOOKING_ACCEPTED' : 'BOOKING_REQUESTED',
+        });
+      }
+    } catch (e) {
+      console.error('Error sending createPass notifications:', e);
+    }
+
+    return booking;
   }
 
   async createInstant(params: {
@@ -230,25 +245,36 @@ export class BookingsService {
           type: 'CHARGE',
         },
       });
-      await tx.notification.create({
-        data: {
-          userId: spot.hostId,
-          title: status === BookingStatus.CONFIRMED ? 'New Instant Booking' : 'Booking request',
-          body: `${renter.name} booked your spot at ${spot.address}`,
-        },
-      });
-      await tx.notification.create({
-        data: {
-          userId: params.renterId,
-          title: status === BookingStatus.CONFIRMED ? "It's a park!" : 'Request sent',
-          body:
-            status === BookingStatus.CONFIRMED
-              ? `Your booking at ${spot.area} is confirmed`
-              : 'Waiting for host approval',
-        },
-      });
       return booking;
     });
+
+    try {
+      const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
+      const spot = await this.prisma.parkingSpot.findUnique({ where: { id: params.spotId } });
+      if (renter && spot) {
+        await this.fcm.sendNotification({
+          userId: spot.hostId,
+          title: booking.status === BookingStatus.CONFIRMED ? 'New Instant Booking' : 'Booking request',
+          body: `${renter.name} booked your spot at ${spot.address}`,
+          bookingId: booking.id,
+          type: booking.status === BookingStatus.CONFIRMED ? 'BOOKING_ACCEPTED' : 'BOOKING_REQUESTED',
+        });
+        await this.fcm.sendNotification({
+          userId: params.renterId,
+          title: booking.status === BookingStatus.CONFIRMED ? "It's a park!" : 'Request sent',
+          body:
+            booking.status === BookingStatus.CONFIRMED
+              ? `Your booking at ${spot.area} is confirmed`
+              : 'Waiting for host approval',
+          bookingId: booking.id,
+          type: booking.status === BookingStatus.CONFIRMED ? 'BOOKING_ACCEPTED' : 'BOOKING_REQUESTED',
+        });
+      }
+    } catch (e) {
+      console.error('Error sending createInstant notifications:', e);
+    }
+
+    return booking;
   }
 
   async decide(hostId: string, bookingId: string, approve: boolean) {
@@ -277,6 +303,19 @@ export class BookingsService {
           },
         }),
       ]);
+
+      try {
+        await this.fcm.sendNotification({
+          userId: booking.renterId,
+          title: 'Booking declined',
+          body: `Your booking request for ${booking.spot.area} was not accepted.`,
+          bookingId,
+          type: 'BOOKING_REJECTED',
+        });
+      } catch (e) {
+        console.error('Error sending decide decline notification:', e);
+      }
+
       return { ok: true, status: 'CANCELLED' };
     }
     const isPass = booking.type === BookingType.COMMUTER_PASS;
@@ -312,6 +351,19 @@ export class BookingsService {
         });
       }
     });
+
+    try {
+      await this.fcm.sendNotification({
+        userId: booking.renterId,
+        title: 'Booking accepted',
+        body: `Your booking for ${booking.spot.area} has been accepted.`,
+        bookingId,
+        type: 'BOOKING_ACCEPTED',
+      });
+    } catch (e) {
+      console.error('Error sending decide accept notification:', e);
+    }
+
     return { ok: true, status: 'CONFIRMED' };
   }
 
@@ -338,15 +390,24 @@ export class BookingsService {
         data: { userId: booking.renterId, amount: refund, reason: 'Cancel refund 80%', bookingId },
       });
       if (booking.renterId !== userId) {
-        await tx.notification.create({
-          data: {
-            userId: booking.renterId,
-            title: 'Host cancelled',
-            body: 'Your pass was cancelled. 80% refunded per policy.',
-          },
-        });
+        // notification is created & sent by FcmService
       }
     });
+
+    if (booking.renterId !== userId) {
+      try {
+        await this.fcm.sendNotification({
+          userId: booking.renterId,
+          title: 'Host cancelled',
+          body: 'Your pass was cancelled. 80% refunded per policy.',
+          bookingId: booking.id,
+          type: 'BOOKING_CANCELLED',
+        });
+      } catch (e) {
+        console.error('Error sending cancel notification:', e);
+      }
+    }
+
     return { ok: true, refund };
   }
 
