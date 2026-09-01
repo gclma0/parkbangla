@@ -2,8 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:parkbangla_client/parkbangla_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
-const kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3001');
+String _resolveApiUrl() {
+  const envUrl = String.fromEnvironment('API_URL');
+  if (envUrl.isNotEmpty) return envUrl;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:3001';
+  }
+  return 'http://localhost:3001';
+}
+
+final kApiUrl = _resolveApiUrl();
 const yellow = Color(0xFFFFC629);
 const ink = Color(0xFF1A1A1A);
 

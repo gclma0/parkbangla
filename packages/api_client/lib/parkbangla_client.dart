@@ -12,6 +12,7 @@ class PbApi {
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
+        'Bypass-Tunnel-Reminder': 'true',
         if (token != null) 'Authorization': 'Bearer $token',
         if (activeRole != null) 'x-active-role': activeRole!,
       };
@@ -40,13 +41,24 @@ class PbApi {
   }
 
   dynamic _decode(http.Response r) {
-    if (r.body.isEmpty) return null;
-    final data = jsonDecode(r.body);
-    if (r.statusCode >= 400) {
-      final msg = data is Map ? (data['message'] ?? data['error'] ?? r.body) : r.body;
-      throw PbException(r.statusCode, msg.toString());
+    if (r.body.isEmpty) return <String, dynamic>{};
+    try {
+      final data = jsonDecode(r.body);
+      if (r.statusCode >= 400) {
+        final msg = data is Map ? (data['message'] ?? data['error'] ?? r.body) : r.body;
+        throw PbException(r.statusCode, msg.toString());
+      }
+      return data;
+    } catch (e) {
+      if (e is PbException) rethrow;
+      if (r.statusCode >= 400) {
+        throw PbException(r.statusCode, 'Server error (${r.statusCode})');
+      }
+      if (r.body.contains('localtunnel') || r.body.contains('<!DOCTYPE html>')) {
+        throw PbException(502, 'Tunnel verification required. Please retry.');
+      }
+      throw PbException(r.statusCode, 'Invalid server response');
     }
-    return data;
   }
 }
 

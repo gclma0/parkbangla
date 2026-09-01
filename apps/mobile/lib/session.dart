@@ -3,7 +3,16 @@ import 'package:parkbangla_client/parkbangla_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'fcm_service.dart';
 
-const kApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3001');
+String _resolveApiUrl() {
+  const envUrl = String.fromEnvironment('API_URL');
+  if (envUrl.isNotEmpty) return envUrl;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.0.2.2:3001';
+  }
+  return 'http://localhost:3001';
+}
+
+final kApiUrl = _resolveApiUrl();
 
 class Session extends ChangeNotifier {
   Session() {
@@ -49,13 +58,14 @@ class Session extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> requestOtp(String phone) async {
-    return Map<String, dynamic>.from(await api.post('/auth/otp/request', {'phone': phone}) as Map);
+    final res = await api.post('/auth/otp/request', {'phone': phone});
+    return res is Map ? Map<String, dynamic>.from(res) : {};
   }
 
   Future<void> verifyOtp(String phone, String code, {String? name}) async {
-    final res = Map<String, dynamic>.from(
-      await api.post('/auth/otp/verify', {'phone': phone, 'code': code, if (name != null) 'name': name}) as Map,
-    );
+    final raw = await api.post('/auth/otp/verify', {'phone': phone, 'code': code, if (name != null) 'name': name});
+    if (raw is! Map) throw PbException(500, 'Invalid response from server');
+    final res = Map<String, dynamic>.from(raw);
     api.token = res['token'] as String;
     user = Map<String, dynamic>.from(res['user'] as Map);
     if (phone == '01710000002' || phone == '01710000003') {
