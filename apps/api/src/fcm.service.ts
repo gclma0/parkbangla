@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import * as admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getMessaging, Message } from 'firebase-admin/messaging';
 
 @Injectable()
 export class FcmService {
@@ -17,11 +18,11 @@ export class FcmService {
       if (saKey) {
         let credential;
         if (saKey.trim().startsWith('{')) {
-          credential = admin.credential.cert(JSON.parse(saKey));
+          credential = cert(JSON.parse(saKey));
         } else {
-          credential = admin.credential.cert(saKey);
+          credential = cert(saKey);
         }
-        admin.initializeApp({ credential });
+        initializeApp({ credential });
         this.initialized = true;
         this.logger.log('Firebase Admin SDK initialized successfully.');
       } else {
@@ -64,7 +65,7 @@ export class FcmService {
     // 3. Deliver FCM
     if (this.initialized) {
       try {
-        const payload: admin.messaging.Message = {
+        const payload: Message = {
           token: user.fcmToken,
           notification: {
             title: params.title,
@@ -77,7 +78,7 @@ export class FcmService {
             },
           },
         };
-        await admin.messaging().send(payload);
+        await getMessaging().send(payload);
         this.logger.log(`FCM successfully sent to user ${params.userId}`);
       } catch (e) {
         this.logger.error(`Failed to send FCM to user ${params.userId}:`, e);

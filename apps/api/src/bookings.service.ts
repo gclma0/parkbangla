@@ -62,7 +62,7 @@ export class BookingsService {
     const qrToken = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const status = spot.autoApprove ? BookingStatus.CONFIRMED : BookingStatus.PENDING;
 
-    return this.prisma.$transaction(async (tx) => {
+    const booking = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: params.renterId },
         data: { walletBalance: { decrement: amount } },
@@ -210,7 +210,7 @@ export class BookingsService {
     const qrToken = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const status = spot.autoApprove ? BookingStatus.CONFIRMED : BookingStatus.PENDING;
 
-    return this.prisma.$transaction(async (tx) => {
+    const booking = await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: params.renterId },
         data: { walletBalance: { decrement: amount } },
