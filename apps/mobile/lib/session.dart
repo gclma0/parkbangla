@@ -6,10 +6,13 @@ import 'fcm_service.dart';
 String _resolveApiUrl() {
   const envUrl = String.fromEnvironment('API_URL');
   if (envUrl.isNotEmpty) return envUrl;
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.0.2.2:3001';
+  if (kDebugMode) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:3001';
+    }
+    return 'http://localhost:3001';
   }
-  return 'http://localhost:3001';
+  return 'https://parkbangla.onrender.com';
 }
 
 final kApiUrl = _resolveApiUrl();

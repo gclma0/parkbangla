@@ -1,5 +1,6 @@
 library parkbangla_client;
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
@@ -20,24 +21,32 @@ class PbApi {
   Uri _u(String path, [Map<String, String>? q]) =>
       Uri.parse('$baseUrl$path').replace(queryParameters: q);
 
+  Future<dynamic> _exec(Future<http.Response> Function() req) async {
+    try {
+      final r = await req().timeout(const Duration(seconds: 12));
+      return _decode(r);
+    } on TimeoutException {
+      throw PbException(408, 'Connection timeout. Server at $baseUrl is unreachable.');
+    } catch (e) {
+      if (e is PbException) rethrow;
+      throw PbException(500, 'Network error: Unable to connect to server at $baseUrl');
+    }
+  }
+
   Future<dynamic> get(String path, [Map<String, String>? q]) async {
-    final r = await http.get(_u(path, q), headers: _headers);
-    return _decode(r);
+    return _exec(() => http.get(_u(path, q), headers: _headers));
   }
 
   Future<dynamic> post(String path, [Map<String, dynamic>? body]) async {
-    final r = await http.post(_u(path), headers: _headers, body: jsonEncode(body ?? {}));
-    return _decode(r);
+    return _exec(() => http.post(_u(path), headers: _headers, body: jsonEncode(body ?? {})));
   }
 
   Future<dynamic> patch(String path, [Map<String, dynamic>? body]) async {
-    final r = await http.patch(_u(path), headers: _headers, body: jsonEncode(body ?? {}));
-    return _decode(r);
+    return _exec(() => http.patch(_u(path), headers: _headers, body: jsonEncode(body ?? {})));
   }
 
   Future<dynamic> delete(String path) async {
-    final r = await http.delete(_u(path), headers: _headers);
-    return _decode(r);
+    return _exec(() => http.delete(_u(path), headers: _headers));
   }
 
   dynamic _decode(http.Response r) {
