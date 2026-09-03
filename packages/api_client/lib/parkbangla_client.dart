@@ -22,15 +22,30 @@ class PbApi {
       Uri.parse('$baseUrl$path').replace(queryParameters: q);
 
   Future<dynamic> _exec(Future<http.Response> Function() req) async {
-    try {
-      final r = await req().timeout(const Duration(seconds: 12));
-      return _decode(r);
-    } on TimeoutException {
-      throw PbException(408, 'Connection timeout. Server at $baseUrl is unreachable.');
-    } catch (e) {
-      if (e is PbException) rethrow;
-      throw PbException(500, 'Network error: Unable to connect to server at $baseUrl');
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final r = await req().timeout(const Duration(seconds: 35));
+        return _decode(r);
+      } on TimeoutException catch (e) {
+        lastError = e;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+      } catch (e) {
+        if (e is PbException) rethrow;
+        lastError = e;
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+          continue;
+        }
+      }
     }
+    if (lastError is TimeoutException) {
+      throw PbException(408, 'Connection timeout. The server may still be waking up. Please try again in a minute.');
+    }
+    throw PbException(500, 'Network error: Unable to connect to server at $baseUrl');
   }
 
   Future<dynamic> get(String path, [Map<String, String>? q]) async {

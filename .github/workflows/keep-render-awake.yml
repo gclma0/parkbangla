@@ -1,0 +1,14 @@
+name: Keep Render API Awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping ParkBangla API health endpoint
+        run: |
+          curl --fail --show-error --silent --max-time 45 https://parkbangla.onrender.com/health
