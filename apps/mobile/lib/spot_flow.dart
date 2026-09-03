@@ -1259,6 +1259,9 @@ class _NavigationPageState extends State<NavigationPage> {
               options: MapOptions(
                 initialCenter: LatLng((_destLat - 0.0025), (_destLng - 0.0025)),
                 initialZoom: 15,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                ),
               ),
               children: [
                 TileLayer(

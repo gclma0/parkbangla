@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { BookingStatus } from '@prisma/client';
 import { IsArray, IsDateString, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 import { AuthGuard } from './auth.guard';
 import { BookingsService } from './bookings.service';
@@ -102,7 +104,8 @@ export class BookingsController {
   }
 
   @Get('bookings')
-  list(@Req() req: { user: { id: string } }, @Query('role') role?: string) {
+  async list(@Req() req: { user: { id: string } }, @Query('role') role?: string) {
+    await this.bookings.expirePendingBookings();
     if (role === 'host') {
       return this.prisma.booking.findMany({
         where: { spot: { hostId: req.user.id } },
@@ -118,15 +121,16 @@ export class BookingsController {
   }
 
   @Get('bookings/:id')
-  one(@Param('id') id: string) {
-    return this.prisma.booking.findUnique({
-      where: { id },
+  async one(@Req() req: { user: { id: string; isAdmin?: boolean } }, @Param('id') id: string) {
+    await this.bookings.expirePendingBookings();
+    return this.prisma.booking.findFirst({
+      where: req.user.isAdmin ? { id } : { id, OR: [{ renterId: req.user.id }, { spot: { hostId: req.user.id } }] },
       include: {
-        spot: { include: { host: true } },
-        renter: true,
+        spot: { include: { host: { select: { id: true, name: true, phone: true, ratingAvg: true, ratingCount: true } } } },
+        renter: { select: { id: true, name: true, phone: true, ratingAvg: true, ratingCount: true } },
         checkIns: true,
         reviews: true,
-        transactions: true,
+        transactions: req.user.isAdmin === true,
       },
     });
   }
@@ -166,12 +170,24 @@ export class BookingsController {
     @Param('id') id: string,
     @Body() dto: ReviewDto,
   ) {
+    const booking = await this.requireBookingParty(id, req.user.id);
+    if (booking.status !== BookingStatus.COMPLETED) {
+      throw new BadRequestException('Reviews are allowed only after completed bookings.');
+    }
+    const allowedTargets = [booking.renterId, booking.spot.hostId].filter((userId) => userId !== req.user.id);
+    if (!allowedTargets.includes(dto.toUserId)) {
+      throw new BadRequestException('Review target must be the other booking participant.');
+    }
+    const rating = Number(dto.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5.');
+    }
     const review = await this.prisma.review.create({
       data: {
         bookingId: id,
         fromUserId: req.user.id,
         toUserId: dto.toUserId,
-        rating: Number(dto.rating),
+        rating,
         comment: dto.comment,
       },
     });
@@ -188,13 +204,15 @@ export class BookingsController {
   }
 
   @Post('bookings/:id/disputes')
-  dispute(
+  async dispute(
     @Req() req: { user: { id: string } },
     @Param('id') id: string,
     @Body() body: { notes: string },
   ) {
+    if (!body.notes?.trim()) throw new BadRequestException('Dispute notes are required.');
+    await this.requireBookingParty(id, req.user.id);
     return this.prisma.dispute.create({
-      data: { bookingId: id, raisedById: req.user.id, notes: body.notes },
+      data: { bookingId: id, raisedById: req.user.id, notes: body.notes.trim() },
     });
   }
 
@@ -204,22 +222,38 @@ export class BookingsController {
     @Param('id') id: string,
     @Body() body: { content: string },
   ) {
+    await this.requireBookingParty(id, req.user.id);
+    if (!body.content?.trim()) throw new BadRequestException('Message content is required.');
     return this.prisma.message.create({
       data: {
         bookingId: id,
         senderId: req.user.id,
-        content: body.content,
+        content: body.content.trim(),
       },
     });
   }
 
   @Get('bookings/:id/messages')
   async getMessages(
+    @Req() req: { user: { id: string } },
     @Param('id') id: string,
   ) {
+    await this.requireBookingParty(id, req.user.id);
     return this.prisma.message.findMany({
       where: { bookingId: id },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  private async requireBookingParty(bookingId: string, userId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: {
+        id: bookingId,
+        OR: [{ renterId: userId }, { spot: { hostId: userId } }],
+      },
+      include: { spot: true },
+    });
+    if (!booking) throw new BadRequestException('Booking not found');
+    return booking;
   }
 }

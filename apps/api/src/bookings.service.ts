@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { BookingStatus, BookingType } from '@prisma/client';
+import { BookingStatus, BookingType, Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';
-import { bookingsConflict, commissionOn } from './booking-rules';
+import { availabilityCoversBooking, blockConflictsWithBooking, bookingsConflict, commissionOn, isValidHHMM } from './booking-rules';
 import { FcmService } from './fcm.service';
+
+const PENDING_EXPIRY_MINUTES = Number(process.env.PENDING_BOOKING_EXPIRY_MINUTES ?? 30);
 
 @Injectable()
 export class BookingsService {
@@ -10,6 +12,119 @@ export class BookingsService {
     private prisma: PrismaService,
     private fcm: FcmService,
   ) {}
+
+  private assertDateWindow(startDate: Date, endDate: Date) {
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate > endDate) {
+      throw new BadRequestException('Invalid booking date range');
+    }
+  }
+
+  private assertTimeWindow(startTime: string, endTime: string) {
+    if (!isValidHHMM(startTime) || !isValidHHMM(endTime) || startTime === endTime) {
+      throw new BadRequestException('Invalid booking time window');
+    }
+  }
+
+  private assertWeekdays(weekdays: number[]) {
+    if (!Array.isArray(weekdays) || weekdays.length === 0 || weekdays.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) {
+      throw new BadRequestException('Weekdays must contain values from 0 to 6');
+    }
+  }
+
+  private async assertVehicleBelongsToRenter(renterId: string, vehicleId?: string) {
+    if (!vehicleId) return;
+    const vehicle = await this.prisma.vehicle.findFirst({ where: { id: vehicleId, userId: renterId } });
+    if (!vehicle) throw new BadRequestException('Vehicle not found');
+  }
+
+  private assertAmount(amount: number) {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid booking amount');
+    }
+  }
+
+  private pendingExpiryCutoff(now = new Date()) {
+    return new Date(now.getTime() - PENDING_EXPIRY_MINUTES * 60 * 1000);
+  }
+
+  private conflictWhere(spotId: string, cutoff = this.pendingExpiryCutoff()): Prisma.BookingWhereInput {
+    return {
+      spotId,
+      OR: [
+        { status: { in: [BookingStatus.CONFIRMED, BookingStatus.ACTIVE] } },
+        { status: BookingStatus.PENDING, createdAt: { gte: cutoff } },
+      ],
+    };
+  }
+
+  async expirePendingBookings(spotId?: string) {
+    const expired = await this.prisma.booking.findMany({
+      where: {
+        ...(spotId ? { spotId } : {}),
+        status: BookingStatus.PENDING,
+        createdAt: { lt: this.pendingExpiryCutoff() },
+      },
+      select: { id: true, renterId: true, amount: true },
+    });
+    if (expired.length === 0) return;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const booking of expired) {
+        await tx.booking.update({
+          where: { id: booking.id },
+          data: { status: BookingStatus.CANCELLED },
+        });
+        await tx.user.update({
+          where: { id: booking.renterId },
+          data: { walletBalance: { increment: booking.amount } },
+        });
+        await tx.walletLedger.create({
+          data: { userId: booking.renterId, amount: booking.amount, reason: 'Expired booking request refund', bookingId: booking.id },
+        });
+        await tx.transaction.create({
+          data: {
+            bookingId: booking.id,
+            userId: booking.renterId,
+            amount: booking.amount,
+            method: 'wallet',
+            type: 'REFUND',
+          },
+        });
+      }
+    });
+  }
+
+  private assertSpotAvailableForWindow(
+    spot: {
+      availability: { weekdays: number[]; startTime: string; endTime: string }[];
+      blocks: { startAt: Date; endAt: Date }[];
+    },
+    window: { startDate: Date; endDate: Date; weekdays: number[]; startTime: string; endTime: string },
+  ) {
+    if (!availabilityCoversBooking(spot.availability, window)) {
+      throw new BadRequestException('Spot is not available for that schedule');
+    }
+    if (spot.blocks.some((block) => blockConflictsWithBooking(block, window))) {
+      throw new BadRequestException('Host blocked this window');
+    }
+  }
+
+  private async assertNoConflictingBooking(
+    tx: Pick<Prisma.TransactionClient, 'booking'>,
+    params: { spotId: string; startDate: Date; endDate: Date; weekdays: number[]; startTime: string; endTime: string },
+  ) {
+    const existing = await tx.booking.findMany({ where: this.conflictWhere(params.spotId) });
+    const clash = existing.some((b) =>
+      bookingsConflict(b, {
+        startDate: params.startDate,
+        endDate: params.endDate,
+        weekdays: params.weekdays,
+        startTime: params.startTime,
+        endTime: params.endTime,
+      }),
+    );
+    if (clash) throw new BadRequestException('This spot is already booked for that window');
+  }
 
   async createPass(params: {
     renterId: string;
@@ -21,37 +136,32 @@ export class BookingsService {
     startTime: string;
     endTime: string;
   }) {
+    this.assertDateWindow(params.startDate, params.endDate);
+    this.assertTimeWindow(params.startTime, params.endTime);
+    this.assertWeekdays(params.weekdays);
+    await this.assertVehicleBelongsToRenter(params.renterId, params.vehicleId);
+    await this.expirePendingBookings(params.spotId);
+
     const spot = await this.prisma.parkingSpot.findUnique({
       where: { id: params.spotId },
       include: { availability: true, blocks: true },
     });
     if (!spot || !spot.active) throw new BadRequestException('Spot unavailable');
+    if (spot.hostId === params.renterId) throw new BadRequestException('You cannot book your own spot');
 
-    const blocked = spot.blocks.some(
-      (b) => params.startDate <= b.endAt && params.endDate >= b.startAt,
-    );
-    if (blocked) throw new BadRequestException('Host blocked this window');
-
-    const existing = await this.prisma.booking.findMany({
-      where: {
-        spotId: params.spotId,
-        status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ACTIVE] },
-      },
-    });
-    const clash = existing.some((b) =>
-      bookingsConflict(b, {
-        startDate: params.startDate,
-        endDate: params.endDate,
-        weekdays: params.weekdays,
-        startTime: params.startTime,
-        endTime: params.endTime,
-      }),
-    );
-    if (clash) throw new BadRequestException('This spot is already booked for that window');
+    const requestedWindow = {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      weekdays: params.weekdays,
+      startTime: params.startTime,
+      endTime: params.endTime,
+    };
+    this.assertSpotAvailableForWindow(spot, requestedWindow);
 
     const months =
       (params.endDate.getTime() - params.startDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
     const amount = Math.max(spot.monthlyPrice, Math.round(spot.monthlyPrice * Math.max(months, 0.5)));
+    this.assertAmount(amount);
 
     const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
     if (!renter || renter.walletBalance < amount) {
@@ -62,71 +172,75 @@ export class BookingsService {
     const qrToken = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const status = spot.autoApprove ? BookingStatus.CONFIRMED : BookingStatus.PENDING;
 
-    const booking = await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: params.renterId },
-        data: { walletBalance: { decrement: amount } },
-      });
-      const booking = await tx.booking.create({
-        data: {
-          spotId: params.spotId,
-          renterId: params.renterId,
-          vehicleId: params.vehicleId,
-          startDate: params.startDate,
-          endDate: params.endDate,
-          weekdays: params.weekdays,
-          startTime: params.startTime,
-          endTime: params.endTime,
-          amount,
-          pin,
-          qrToken,
-          status,
-        },
-        include: { spot: { include: { host: true } } },
-      });
-      await tx.walletLedger.create({
-        data: { userId: params.renterId, amount: -amount, reason: 'Commuter Pass', bookingId: booking.id },
-      });
-      await tx.transaction.create({
-        data: {
-          bookingId: booking.id,
-          userId: params.renterId,
-          amount,
-          method: 'wallet',
-          type: 'CHARGE',
-        },
-      });
-      const commission = commissionOn(amount);
-      const hostNet = amount - commission;
-      if (status === BookingStatus.CONFIRMED) {
+    const booking = await this.prisma.$transaction(
+      async (tx) => {
+        await this.assertNoConflictingBooking(tx, { spotId: params.spotId, ...requestedWindow });
         await tx.user.update({
-          where: { id: spot.hostId },
-          data: { walletBalance: { increment: hostNet } },
+          where: { id: params.renterId },
+          data: { walletBalance: { decrement: amount } },
+        });
+        const booking = await tx.booking.create({
+          data: {
+            spotId: params.spotId,
+            renterId: params.renterId,
+            vehicleId: params.vehicleId,
+            startDate: params.startDate,
+            endDate: params.endDate,
+            weekdays: params.weekdays,
+            startTime: params.startTime,
+            endTime: params.endTime,
+            amount,
+            pin,
+            qrToken,
+            status,
+          },
+          include: { spot: { include: { host: true } } },
         });
         await tx.walletLedger.create({
-          data: { userId: spot.hostId, amount: hostNet, reason: 'Pass payout', bookingId: booking.id },
+          data: { userId: params.renterId, amount: -amount, reason: 'Commuter Pass', bookingId: booking.id },
         });
         await tx.transaction.create({
           data: {
             bookingId: booking.id,
-            userId: spot.hostId,
-            amount: hostNet,
+            userId: params.renterId,
+            amount,
             method: 'wallet',
-            type: 'PAYOUT',
+            type: 'CHARGE',
           },
         });
-        await tx.transaction.create({
-          data: {
-            bookingId: booking.id,
-            userId: spot.hostId,
-            amount: commission,
-            method: 'platform',
-            type: 'COMMISSION',
-          },
-        });
-      }
-      return booking;
-    });
+        const commission = commissionOn(amount);
+        const hostNet = amount - commission;
+        if (status === BookingStatus.CONFIRMED) {
+          await tx.user.update({
+            where: { id: spot.hostId },
+            data: { walletBalance: { increment: hostNet } },
+          });
+          await tx.walletLedger.create({
+            data: { userId: spot.hostId, amount: hostNet, reason: 'Pass payout', bookingId: booking.id },
+          });
+          await tx.transaction.create({
+            data: {
+              bookingId: booking.id,
+              userId: spot.hostId,
+              amount: hostNet,
+              method: 'wallet',
+              type: 'PAYOUT',
+            },
+          });
+          await tx.transaction.create({
+            data: {
+              bookingId: booking.id,
+              userId: spot.hostId,
+              amount: commission,
+              method: 'platform',
+              type: 'COMMISSION',
+            },
+          });
+        }
+        return booking;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     try {
       const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
@@ -169,37 +283,34 @@ export class BookingsService {
     hoursEstimated: number;
     daysEstimated: number;
   }) {
+    this.assertDateWindow(params.startDate, params.endDate);
+    this.assertTimeWindow(params.startTime, params.endTime);
+    if ((params.isHourly && params.hoursEstimated <= 0) || (!params.isHourly && params.daysEstimated <= 0)) {
+      throw new BadRequestException('Estimated duration is required');
+    }
+    await this.assertVehicleBelongsToRenter(params.renterId, params.vehicleId);
+    await this.expirePendingBookings(params.spotId);
+
     const spot = await this.prisma.parkingSpot.findUnique({
       where: { id: params.spotId },
       include: { availability: true, blocks: true },
     });
     if (!spot || !spot.active) throw new BadRequestException('Spot unavailable');
+    if (spot.hostId === params.renterId) throw new BadRequestException('You cannot book your own spot');
 
-    const blocked = spot.blocks.some(
-      (b) => params.startDate <= b.endAt && params.endDate >= b.startAt,
-    );
-    if (blocked) throw new BadRequestException('Host blocked this window');
-
-    const existing = await this.prisma.booking.findMany({
-      where: {
-        spotId: params.spotId,
-        status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ACTIVE] },
-      },
-    });
-    const clash = existing.some((b) =>
-      bookingsConflict(b, {
-        startDate: params.startDate,
-        endDate: params.endDate,
-        weekdays: params.isHourly ? [params.startDate.getDay()] : [1, 2, 3, 4, 5, 6, 0],
-        startTime: params.startTime,
-        endTime: params.endTime,
-      }),
-    );
-    if (clash) throw new BadRequestException('This spot is already booked for that window');
+    const requestedWindow = {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      weekdays: params.isHourly ? [params.startDate.getUTCDay()] : [0, 1, 2, 3, 4, 5, 6],
+      startTime: params.startTime,
+      endTime: params.endTime,
+    };
+    this.assertSpotAvailableForWindow(spot, requestedWindow);
 
     const amount = params.isHourly
       ? params.hoursEstimated * spot.hourlyPrice
       : params.daysEstimated * spot.dailyPrice;
+    this.assertAmount(amount);
 
     const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
     if (!renter || renter.walletBalance < amount) {
@@ -210,43 +321,47 @@ export class BookingsService {
     const qrToken = `pb_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
     const status = spot.autoApprove ? BookingStatus.CONFIRMED : BookingStatus.PENDING;
 
-    const booking = await this.prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: params.renterId },
-        data: { walletBalance: { decrement: amount } },
-      });
-      const booking = await tx.booking.create({
-        data: {
-          spotId: params.spotId,
-          renterId: params.renterId,
-          vehicleId: params.vehicleId,
-          type: BookingType.INSTANT,
-          startDate: params.startDate,
-          endDate: params.endDate,
-          weekdays: params.isHourly ? [params.startDate.getDay()] : [1, 2, 3, 4, 5, 6, 0],
-          startTime: params.startTime,
-          endTime: params.endTime,
-          amount,
-          pin,
-          qrToken,
-          status,
-        },
-        include: { spot: { include: { host: true } } },
-      });
-      await tx.walletLedger.create({
-        data: { userId: params.renterId, amount: -amount, reason: 'Instant booking hold', bookingId: booking.id },
-      });
-      await tx.transaction.create({
-        data: {
-          bookingId: booking.id,
-          userId: params.renterId,
-          amount,
-          method: 'wallet',
-          type: 'CHARGE',
-        },
-      });
-      return booking;
-    });
+    const booking = await this.prisma.$transaction(
+      async (tx) => {
+        await this.assertNoConflictingBooking(tx, { spotId: params.spotId, ...requestedWindow });
+        await tx.user.update({
+          where: { id: params.renterId },
+          data: { walletBalance: { decrement: amount } },
+        });
+        const booking = await tx.booking.create({
+          data: {
+            spotId: params.spotId,
+            renterId: params.renterId,
+            vehicleId: params.vehicleId,
+            type: BookingType.INSTANT,
+            startDate: params.startDate,
+            endDate: params.endDate,
+            weekdays: requestedWindow.weekdays,
+            startTime: params.startTime,
+            endTime: params.endTime,
+            amount,
+            pin,
+            qrToken,
+            status,
+          },
+          include: { spot: { include: { host: true } } },
+        });
+        await tx.walletLedger.create({
+          data: { userId: params.renterId, amount: -amount, reason: 'Instant booking hold', bookingId: booking.id },
+        });
+        await tx.transaction.create({
+          data: {
+            bookingId: booking.id,
+            userId: params.renterId,
+            amount,
+            method: 'wallet',
+            type: 'CHARGE',
+          },
+        });
+        return booking;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     try {
       const renter = await this.prisma.user.findUnique({ where: { id: params.renterId } });
@@ -278,12 +393,14 @@ export class BookingsService {
   }
 
   async decide(hostId: string, bookingId: string, approve: boolean) {
+    await this.expirePendingBookings();
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: { spot: true },
     });
     if (!booking || booking.spot.hostId !== hostId) throw new BadRequestException('Not found');
     if (booking.status !== BookingStatus.PENDING) throw new BadRequestException('Already decided');
+    if (booking.createdAt < this.pendingExpiryCutoff()) throw new BadRequestException('Booking request expired');
     if (!approve) {
       await this.prisma.$transaction([
         this.prisma.booking.update({
@@ -368,6 +485,7 @@ export class BookingsService {
   }
 
   async cancel(userId: string, bookingId: string) {
+    await this.expirePendingBookings();
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: { spot: true },
@@ -418,6 +536,7 @@ export class BookingsService {
     pin?: string,
     qrToken?: string,
   ) {
+    if (kind !== 'in' && kind !== 'out') throw new BadRequestException('Invalid check action');
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -426,6 +545,15 @@ export class BookingsService {
       },
     });
     if (!booking) throw new BadRequestException('Booking not found');
+    if (kind === 'in' && booking.status !== BookingStatus.CONFIRMED) {
+      throw new BadRequestException('Only confirmed bookings can be checked in');
+    }
+    if (kind === 'out' && booking.status !== BookingStatus.ACTIVE) {
+      throw new BadRequestException('Only active bookings can be checked out');
+    }
+    if (booking.checkIns.some((c) => c.kind === kind)) {
+      throw new BadRequestException(`Booking already checked ${kind}`);
+    }
 
     const okPin = pin && pin === booking.pin;
     const okQr = qrToken && qrToken === booking.qrToken;
@@ -472,6 +600,10 @@ export class BookingsService {
           const diff = actualAmount - booking.amount;
 
           if (diff > 0) {
+            const renter = await tx.user.findUnique({ where: { id: booking.renterId } });
+            if (!renter || renter.walletBalance < diff) {
+              throw new BadRequestException('Insufficient wallet balance for extra duration');
+            }
             await tx.user.update({
               where: { id: booking.renterId },
               data: { walletBalance: { decrement: diff } },

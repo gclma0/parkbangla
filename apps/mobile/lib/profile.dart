@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'i18n.dart';
+import 'location_tools.dart';
 import 'session.dart';
 import 'spot_flow.dart';
 import 'theme.dart';
@@ -669,10 +672,13 @@ class ListSpotPage extends StatefulWidget {
 }
 
 class _ListSpotPageState extends State<ListSpotPage> {
-  final address = TextEditingController(text: 'House 24, Road 12, Banani');
-  final area = TextEditingController(text: 'Banani');
-  final lat = TextEditingController(text: '23.7940');
-  final lng = TextEditingController(text: '90.4048');
+  static const _dhakaCenter = LatLng(23.7806, 90.4143);
+
+  final _mapController = MapController();
+  final address = TextEditingController();
+  final area = TextEditingController();
+  final lat = TextEditingController();
+  final lng = TextEditingController();
   final photo = TextEditingController(text: 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=1200');
   final accessNotes = TextEditingController(text: 'Tell the guard "ParkBangla - Sadia". Gate code: 1234');
   
@@ -689,6 +695,8 @@ class _ListSpotPageState extends State<ListSpotPage> {
   String accessType = 'GUARD';
   Map<String, dynamic>? suggestions;
   bool loading = false;
+  bool locating = false;
+  LatLng? markerPoint;
 
   @override
   void initState() {
@@ -737,14 +745,55 @@ class _ListSpotPageState extends State<ListSpotPage> {
     } catch (_) {}
   }
 
+  void _setMarker(LatLng point, {bool moveMap = true}) {
+    setState(() {
+      markerPoint = point;
+      lat.text = point.latitude.toStringAsFixed(7);
+      lng.text = point.longitude.toStringAsFixed(7);
+    });
+    if (moveMap) _mapController.move(point, 17);
+  }
+
+  Future<void> _searchAddress() async {
+    final term = '${address.text} ${area.text}'.trim();
+    if (term.length < 2) return;
+    final places = await searchOsmPlaces(term);
+    if (!mounted) return;
+    if (places.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No matching location found. Try a fuller address.')));
+      return;
+    }
+    final place = places.first;
+    _setMarker(place.point);
+    if (address.text.trim().isEmpty) address.text = place.title;
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => locating = true);
+    final result = await getCurrentLocation();
+    if (!mounted) return;
+    setState(() => locating = false);
+    if (result.point == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? 'Current location unavailable.')));
+      return;
+    }
+    _setMarker(result.point!);
+  }
+
   Future<void> _submit() async {
     if (address.text.trim().isEmpty || area.text.trim().isEmpty) return;
+    final parsedLat = double.tryParse(lat.text);
+    final parsedLng = double.tryParse(lng.text);
+    if (parsedLat == null || parsedLng == null || parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Set an exact valid parking location on the map.')));
+      return;
+    }
     setState(() => loading = true);
     try {
       final spot = Map<String, dynamic>.from(
         await session.api.post('/spots', {
-          'lat': double.tryParse(lat.text) ?? 23.7808,
-          'lng': double.tryParse(lng.text) ?? 90.4143,
+          'lat': parsedLat,
+          'lng': parsedLng,
           'address': address.text.trim(),
           'area': area.text.trim(),
           'covered': covered,
@@ -797,6 +846,64 @@ class _ListSpotPageState extends State<ListSpotPage> {
                 style: const TextStyle(color: Pb.muted, fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.search),
+                  label: const Text('Find on map'),
+                  onPressed: _searchAddress,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: locating
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location),
+                  label: const Text('Use current'),
+                  onPressed: locating ? null : _useCurrentLocation,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              height: 260,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: markerPoint ?? _dhakaCenter,
+                  initialZoom: 15,
+                  maxZoom: 19,
+                  minZoom: 5,
+                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
+                  onTap: (_, point) => _setMarker(point, moveMap: false),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.parkbangla.mobile',
+                    maxZoom: 19,
+                  ),
+                  MarkerLayer(markers: [
+                    if (markerPoint != null)
+                      Marker(
+                        point: markerPoint!,
+                        width: 48,
+                        height: 48,
+                        child: const Icon(Icons.location_on, color: Pb.yellowDeep, size: 44),
+                      ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text('Tap the map to fine-tune the exact parking entrance.', style: TextStyle(color: Pb.muted, fontSize: 12)),
           const SizedBox(height: 12),
           Row(
             children: [
