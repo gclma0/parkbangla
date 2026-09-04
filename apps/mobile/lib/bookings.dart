@@ -37,6 +37,33 @@ class _BookingsPageState extends State<BookingsPage> {
     if (mounted) setState(() => loading = false);
   }
 
+  Future<void> _rejectBooking(Map<String, dynamic> booking) async {
+    final reason = TextEditingController(text: 'Spot is unavailable at that time');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject request'),
+        content: TextField(controller: reason, decoration: const InputDecoration(labelText: 'Reason')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reject')),
+        ],
+      ),
+    );
+    if (ok != true) {
+      reason.dispose();
+      return;
+    }
+    try {
+      await session.api.post('/bookings/${booking['id']}/decide', {'approve': false, 'reason': reason.text.trim()});
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      reason.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
@@ -242,6 +269,19 @@ class _BookingsPageState extends State<BookingsPage> {
                                     style: FilledButton.styleFrom(
                                       backgroundColor: Pb.yellow,
                                       foregroundColor: Pb.ink,
+                                      minimumSize: const Size.fromHeight(36),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(vertical: 0),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _rejectBooking(b),
+                                    icon: const Icon(Icons.close, size: 16),
+                                    label: const Text('Reject with reason'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
                                       minimumSize: const Size.fromHeight(36),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       padding: const EdgeInsets.symmetric(vertical: 0),

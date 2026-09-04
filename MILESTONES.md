@@ -237,6 +237,8 @@ Manual QA:
 
 Goal: make hosting manageable after listing a spot.
 
+Status: completed for the current host workflow. More advanced calendar editing and provider-backed payout automation remain production-stage work.
+
 Must do:
 - Add host calendar view.
 - Add edit spot flow for address, coordinates, photos, prices, availability, and access instructions.
@@ -250,6 +252,33 @@ Acceptance:
 - A host can maintain accurate availability without contacting support.
 - A host can edit/fix a listing after creation.
 - A host can understand earnings and upcoming bookings.
+
+Completed implementation:
+- Added host payout account placeholder fields to the user model.
+- Added booking decision reason storage so rejected host requests can carry an explanation.
+- Added a host summary API with spots, pending requests, upcoming bookings, completed bookings, cancelled bookings, and earnings.
+- Host booking rejection now requires a reason and sends it in the renter notification.
+- Host dashboard now shows earnings, pending, upcoming, and completed summary cards.
+- Host dashboard includes payout account setup/edit placeholder.
+- Host spot cards now show availability rule and active block counts.
+- Hosts can edit an existing listing using the same listing form, with fields prefilled.
+- Edited listings are resubmitted for verification through the existing pending-review flow.
+- Hosts can add temporary spot blocks from the dashboard.
+- Hosts can inspect a spot schedule view showing availability rules and temporary blocks.
+- Host booking cards support approve and reject-with-reason actions.
+
+Manual QA:
+- Open the app as a host. Expected: host dashboard shows earnings, pending, upcoming, completed, payout account, and spot cards.
+- Tap Set on payout account, enter a method and destination, then save. Expected: payout placeholder is saved and displayed.
+- Tap Edit on a spot. Expected: listing form opens with existing address, coordinates, prices, photos, access notes, and settings prefilled.
+- Change a price or access note and submit. Expected: spot updates and returns to pending verification.
+- Tap Calendar on a spot. Expected: availability rules and temporary blocks are shown.
+- Tap Block on a spot. Expected: a temporary block is created and the block count increases after reload.
+- As a renter, try booking a spot during the block window. Expected: booking is rejected as unavailable.
+- Create a pending booking request for a non-auto-approve spot. Expected: host sees it in bookings.
+- As host, approve the request. Expected: booking becomes confirmed.
+- Create another pending request and reject it with a reason. Expected: request becomes cancelled/refunded, and renter receives/loads the rejection reason notification.
+- Refresh the host dashboard after completed/cancelled bookings. Expected: summary counts and earnings reflect the latest backend data.
 
 ## Milestone 7: Admin And Support Console
 

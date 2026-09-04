@@ -392,7 +392,7 @@ export class BookingsService {
     return booking;
   }
 
-  async decide(hostId: string, bookingId: string, approve: boolean) {
+  async decide(hostId: string, bookingId: string, approve: boolean, reason?: string) {
     await this.expirePendingBookings();
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
@@ -402,10 +402,12 @@ export class BookingsService {
     if (booking.status !== BookingStatus.PENDING) throw new BadRequestException('Already decided');
     if (booking.createdAt < this.pendingExpiryCutoff()) throw new BadRequestException('Booking request expired');
     if (!approve) {
+      const rejectionReason = reason?.trim();
+      if (!rejectionReason) throw new BadRequestException('Rejection reason is required.');
       await this.prisma.$transaction([
         this.prisma.booking.update({
           where: { id: bookingId },
-          data: { status: BookingStatus.CANCELLED },
+          data: { status: BookingStatus.CANCELLED, decisionReason: rejectionReason },
         }),
         this.prisma.user.update({
           where: { id: booking.renterId },
@@ -425,7 +427,7 @@ export class BookingsService {
         await this.fcm.sendNotification({
           userId: booking.renterId,
           title: 'Booking declined',
-          body: `Your booking request for ${booking.spot.area} was not accepted.`,
+          body: `Your booking request for ${booking.spot.area} was not accepted. Reason: ${rejectionReason}`,
           bookingId,
           type: 'BOOKING_REJECTED',
         });
@@ -439,7 +441,7 @@ export class BookingsService {
     const commission = commissionOn(booking.amount);
     const hostNet = booking.amount - commission;
     await this.prisma.$transaction(async (tx) => {
-      await tx.booking.update({ where: { id: bookingId }, data: { status: BookingStatus.CONFIRMED } });
+      await tx.booking.update({ where: { id: bookingId }, data: { status: BookingStatus.CONFIRMED, decisionReason: reason?.trim() || null } });
       if (isPass) {
         await tx.user.update({
           where: { id: hostId },

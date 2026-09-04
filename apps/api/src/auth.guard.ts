@@ -12,6 +12,7 @@ function isHostRoute(req: any): boolean {
   const path = req.path || req.url || '';
   const method = req.method;
 
+  if (path.startsWith('/host/')) return true;
   if (path.includes('/me/spots')) return true;
   if (path.includes('/spots') && method === 'POST' && !path.includes('/suggest-price')) return true;
   if (path.startsWith('/spots/') && (method === 'PATCH' || path.includes('/availability') || path.includes('/blocks'))) return true;

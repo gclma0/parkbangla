@@ -76,6 +76,8 @@ model User {
   acceptanceRate Float    @default(0)
   cancellationRate Float  @default(0)
   responseMinutesAvg Int?
+  payoutMethod  String?
+  payoutDestination String?
   walletBalance Float     @default(0)
   locale        String    @default("en")
   createdAt     DateTime  @default(now())
@@ -204,6 +206,7 @@ model Booking {
   startTime   String
   endTime     String
   amount      Float
+  decisionReason String?
   pin         String
   qrToken     String        @unique
   createdAt   DateTime      @default(now())

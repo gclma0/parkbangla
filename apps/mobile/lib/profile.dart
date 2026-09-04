@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'i18n.dart';
@@ -156,7 +156,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            session.user?['idVerified'] == true ? i.t('✓ ID Verified', '✓ আইডি ভেরিফাইড') : i.t('Unverified', 'আনভেরিফাইড'),
+                            session.user?['idVerified'] == true ? i.t('âœ“ ID Verified', 'âœ“ à¦†à¦‡à¦¡à¦¿ à¦­à§‡à¦°à¦¿à¦«à¦¾à¦‡à¦¡') : i.t('Unverified', 'à¦†à¦¨à¦­à§‡à¦°à¦¿à¦«à¦¾à¦‡à¦¡'),
                             style: TextStyle(
                               color: session.user?['idVerified'] == true ? Colors.green[800] : Colors.red[800],
                               fontSize: 11,
@@ -204,7 +204,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            i.t('Preferences', 'পছন্দসমূহ'),
+            i.t('Preferences', 'à¦ªà¦›à¦¨à§à¦¦à¦¸à¦®à§‚à¦¹'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Pb.ink),
           ),
           const SizedBox(height: 12),
@@ -217,11 +217,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      i.t('App Language', 'অ্যাপের ভাষা'),
+                      i.t('App Language', 'à¦…à§à¦¯à¦¾à¦ªà§‡à¦° à¦­à¦¾à¦·à¦¾'),
                       style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                     ),
                     Text(
-                      session.bn ? 'বাংলা' : 'English',
+                      session.bn ? 'à¦¬à¦¾à¦‚à¦²à¦¾' : 'English',
                       style: const TextStyle(color: Pb.muted, fontSize: 11),
                     ),
                   ],
@@ -248,7 +248,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'বাংলা',
+                    'à¦¬à¦¾à¦‚à¦²à¦¾',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: session.bn ? FontWeight.w900 : FontWeight.normal,
@@ -296,7 +296,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    i.t('Quick emergency assistance', 'জরুরি দ্রুত সহায়তা'),
+                    i.t('Quick emergency assistance', 'à¦œà¦°à§à¦°à¦¿ à¦¦à§à¦°à§à¦¤ à¦¸à¦¹à¦¾à§Ÿà¦¤à¦¾'),
                     style: const TextStyle(color: Pb.muted, fontSize: 11),
                   ),
                 ],
@@ -322,7 +322,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            i.t('Identity Verification', 'পরিচয় যাচাইকরণ'),
+            i.t('Identity Verification', 'à¦ªà¦°à¦¿à¦šà§Ÿ à¦¯à¦¾à¦šà¦¾à¦‡à¦•à¦°à¦£'),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Pb.ink),
           ),
           const SizedBox(height: 12),
@@ -336,12 +336,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        i.t('Status: Verified', 'অবস্থা: যাচাইকৃত'),
+                        i.t('Status: Verified', 'à¦…à¦¬à¦¸à§à¦¥à¦¾: à¦¯à¦¾à¦šà¦¾à¦‡à¦•à§ƒà¦¤'),
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.green[800]),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        i.t('Identity has been successfully verified.', 'পরিচয় সফলভাবে যাচাই করা হয়েছে।'),
+                        i.t('Identity has been successfully verified.', 'à¦ªà¦°à¦¿à¦šà§Ÿ à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ à¦¯à¦¾à¦šà¦¾à¦‡ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤'),
                         style: const TextStyle(color: Pb.muted, fontSize: 11),
                       ),
                     ],
@@ -351,7 +351,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ] else ...[
             Text(
-              i.t('Verify identity for listing spots or booking.', 'বুকিং ও স্পট লিস্টিং এর জন্য পরিচয় যাচাই করুন।'),
+              i.t('Verify identity for listing spots or booking.', 'à¦¬à§à¦•à¦¿à¦‚ à¦“ à¦¸à§à¦ªà¦Ÿ à¦²à¦¿à¦¸à§à¦Ÿà¦¿à¦‚ à¦à¦° à¦œà¦¨à§à¦¯ à¦ªà¦°à¦¿à¦šà§Ÿ à¦¯à¦¾à¦šà¦¾à¦‡ à¦•à¦°à§à¦¨à¥¤'),
               style: const TextStyle(color: Pb.muted, fontSize: 12, height: 1.3),
             ),
             const SizedBox(height: 16),
@@ -361,7 +361,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 await session.refreshMe();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(i.t('NID marked uploaded', 'এনআইডি আপলোড সফল হয়েছে'))),
+                    SnackBar(content: Text(i.t('NID marked uploaded', 'à¦à¦¨à¦†à¦‡à¦¡à¦¿ à¦†à¦ªà¦²à§‹à¦¡ à¦¸à¦«à¦² à¦¹à§Ÿà§‡à¦›à§‡'))),
                   );
                 }
               },
@@ -372,7 +372,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
               icon: const Icon(Icons.upload_file, size: 18),
-              label: Text(i.t('Verify Identity', 'পরিচয় যাচাই করুন')),
+              label: Text(i.t('Verify Identity', 'à¦ªà¦°à¦¿à¦šà§Ÿ à¦¯à¦¾à¦šà¦¾à¦‡ à¦•à¦°à§à¦¨')),
             ),
           ],
         ],
@@ -394,7 +394,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Row(
             children: [
               Text(
-                i.t('My Vehicles', 'আমার গাড়ি সমূহ'),
+                i.t('My Vehicles', 'à¦†à¦®à¦¾à¦° à¦—à¦¾à§œà¦¿ à¦¸à¦®à§‚à¦¹'),
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Pb.ink),
               ),
               const Spacer(),
@@ -403,7 +403,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   onPressed: () => setState(() => _showAddVehicleForm = true),
                   icon: const Icon(Icons.add, size: 18, color: Pb.yellowDeep),
                   label: Text(
-                    i.t('Add Vehicle', 'গাড়ি যোগ'),
+                    i.t('Add Vehicle', 'à¦—à¦¾à§œà¦¿ à¦¯à§‹à¦—'),
                     style: const TextStyle(color: Pb.yellowDeep, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ),
@@ -416,7 +416,7 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               alignment: Alignment.center,
               child: Text(
-                i.t('No vehicles added yet.', 'এখনো কোনো গাড়ি যোগ করা হয়নি।'),
+                i.t('No vehicles added yet.', 'à¦à¦–à¦¨à§‹ à¦•à§‹à¦¨à§‹ à¦—à¦¾à§œà¦¿ à¦¯à§‹à¦— à¦•à¦°à¦¾ à¦¹à§Ÿà¦¨à¦¿à¥¤'),
                 style: const TextStyle(color: Pb.muted, fontSize: 12, fontStyle: FontStyle.italic),
               ),
             )
@@ -428,7 +428,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: OutlinedButton.icon(
                 onPressed: () => setState(() => _showAddVehicleForm = true),
                 icon: const Icon(Icons.add, size: 16),
-                label: Text(i.t('Add Vehicle', 'গাড়ি যোগ')),
+                label: Text(i.t('Add Vehicle', 'à¦—à¦¾à§œà¦¿ à¦¯à§‹à¦—')),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(44),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -470,7 +470,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${m['type']?.toString().toUpperCase()} · ${m['sizeClass']?.toString().toUpperCase()}',
+                  '${m['type']?.toString().toUpperCase()} Â· ${m['sizeClass']?.toString().toUpperCase()}',
                   style: const TextStyle(color: Pb.muted, fontSize: 11),
                 ),
               ],
@@ -513,7 +513,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    i.t('Add New Vehicle', 'নতুন গাড়ি যোগ করুন'),
+                    i.t('Add New Vehicle', 'à¦¨à¦¤à§à¦¨ à¦—à¦¾à§œà¦¿ à¦¯à§‹à¦— à¦•à¦°à§à¦¨'),
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                   ),
                   const SizedBox(height: 12),
@@ -540,7 +540,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       TextButton(
                         onPressed: () => setState(() => _showAddVehicleForm = false),
-                        child: Text(i.t('Cancel', 'বাতিল'), style: const TextStyle(color: Pb.muted, fontSize: 13)),
+                        child: Text(i.t('Cancel', 'à¦¬à¦¾à¦¤à¦¿à¦²'), style: const TextStyle(color: Pb.muted, fontSize: 13)),
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
@@ -569,7 +569,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         ),
-                        child: Text(i.t('Add', 'যোগ করুন')),
+                        child: Text(i.t('Add', 'à¦¯à§‹à¦— à¦•à¦°à§à¦¨')),
                       ),
                     ],
                   ),
@@ -590,7 +590,7 @@ class _ProfilePageState extends State<ProfilePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         leading: const Icon(Icons.logout, color: Colors.red),
         title: Text(
-          i.t('Log out', 'লগ আউট'),
+          i.t('Log out', 'à¦²à¦— à¦†à¦‰à¦Ÿ'),
           style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w800, fontSize: 14),
         ),
         onTap: session.logout,
@@ -607,6 +607,8 @@ class HostHome extends StatefulWidget {
 
 class _HostHomeState extends State<HostHome> {
   List spots = [];
+  Map<String, dynamic>? summary;
+  bool loading = true;
 
   @override
   void initState() {
@@ -615,47 +617,215 @@ class _HostHomeState extends State<HostHome> {
   }
 
   Future<void> _load() async {
-    final data = await session.api.get('/me/spots');
-    setState(() => spots = data as List);
+    try {
+      final data = await session.api.get('/host/summary');
+      final mapped = Map<String, dynamic>.from(data as Map);
+      if (!mounted) return;
+      setState(() {
+        summary = mapped;
+        spots = mapped['spots'] as List? ?? [];
+        loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   void _add() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ListSpotPage()),
-    ).then((_) => _load());
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const ListSpotPage())).then((_) => _load());
+  }
+
+  void _edit(Map<String, dynamic> spot) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => ListSpotPage(initialSpot: spot))).then((_) => _load());
+  }
+
+  Future<void> _editPayout() async {
+    final method = TextEditingController(text: session.user?['payoutMethod']?.toString() ?? 'bKash');
+    final destination = TextEditingController(text: session.user?['payoutDestination']?.toString() ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Payout account'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: method, decoration: const InputDecoration(labelText: 'Method')),
+            const SizedBox(height: 12),
+            TextField(controller: destination, decoration: const InputDecoration(labelText: 'Account number or destination')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await session.api.patch('/me', {
+        'payoutMethod': method.text.trim(),
+        'payoutDestination': destination.text.trim(),
+      });
+      await session.refreshMe();
+      if (mounted) setState(() {});
+    }
+    method.dispose();
+    destination.dispose();
+  }
+
+  Future<void> _blockSpot(Map<String, dynamic> spot) async {
+    final reason = TextEditingController(text: 'Temporarily unavailable');
+    DateTime start = DateTime.now();
+    DateTime end = start.add(const Duration(hours: 4));
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Block spot'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: reason, decoration: const InputDecoration(labelText: 'Reason')),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Start date'),
+                subtitle: Text(start.toLocal().toString().substring(0, 16)),
+                onTap: () async {
+                  final picked = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 180)), initialDate: start);
+                  if (picked != null) setDialogState(() => start = DateTime(picked.year, picked.month, picked.day, start.hour, start.minute));
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('End date'),
+                subtitle: Text(end.toLocal().toString().substring(0, 16)),
+                onTap: () async {
+                  final picked = await showDatePicker(context: context, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 180)), initialDate: end);
+                  if (picked != null) setDialogState(() => end = DateTime(picked.year, picked.month, picked.day, end.hour, end.minute));
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Block')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) {
+      reason.dispose();
+      return;
+    }
+    try {
+      await session.api.post('/spots/${spot['id']}/blocks', {
+        'startAt': start.toIso8601String(),
+        'endAt': end.toIso8601String(),
+        'reason': reason.text.trim(),
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Spot blocked.')));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      reason.dispose();
+    }
+  }
+
+  void _showSpotCalendar(Map<String, dynamic> spot) {
+    final availability = List.from(spot['availability'] as List? ?? const []);
+    final blocks = List.from(spot['blocks'] as List? ?? const []);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => ListView(
+        padding: const EdgeInsets.all(20),
+        shrinkWrap: true,
+        children: [
+          Text('${spot['area']} schedule', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 12),
+          const Text('Availability', style: TextStyle(fontWeight: FontWeight.w800)),
+          if (availability.isEmpty) const ListTile(contentPadding: EdgeInsets.zero, title: Text('No availability rules')),
+          ...availability.map((raw) {
+            final a = Map<String, dynamic>.from(raw as Map);
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_available),
+              title: Text('${a['startTime']} - ${a['endTime']}'),
+              subtitle: Text('Weekdays: ${(a['weekdays'] as List? ?? const []).join(', ')}'),
+            );
+          }),
+          const Divider(),
+          const Text('Temporary blocks', style: TextStyle(fontWeight: FontWeight.w800)),
+          if (blocks.isEmpty) const ListTile(contentPadding: EdgeInsets.zero, title: Text('No active blocks')),
+          ...blocks.map((raw) {
+            final b = Map<String, dynamic>.from(raw as Map);
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_busy),
+              title: Text('${b['startAt']}'),
+              subtitle: Text('${b['endAt']}\n${b['reason'] ?? ''}'),
+            );
+          }),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
+    if (loading) return const Center(child: CircularProgressIndicator(color: Pb.yellow));
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(i.t('Your spots', 'আপনার স্পট'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+        Text(i.t('Your spots', 'Your spots'), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
         const SizedBox(height: 12),
-        YellowCta(label: i.t('List a new spot', 'নতুন স্পট যোগ'), onPressed: _add),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _hostMetric('Earnings', 'Tk ${summary?['earnings'] ?? 0}'),
+            _hostMetric('Pending', '${summary?['pendingRequests'] ?? 0}'),
+            _hostMetric('Upcoming', '${summary?['upcomingBookings'] ?? 0}'),
+            _hostMetric('Completed', '${summary?['completedBookings'] ?? 0}'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _payoutCard(),
+        const SizedBox(height: 12),
+        YellowCta(label: i.t('List a new spot', 'List a new spot'), onPressed: _add),
         const SizedBox(height: 16),
         ...spots.map((raw) {
           final s = Map<String, dynamic>.from(raw as Map);
+          final blocks = List.from(s['blocks'] as List? ?? const []);
+          final availability = List.from(s['availability'] as List? ?? const []);
           return Card(
-            child: ListTile(
-              title: Text('${s['area']} · ৳${s['monthlyPrice']}'),
-              subtitle: Text('${s['address']}\n${s['verifiedStatus']} · autoApprove ${s['autoApprove']}'),
-              isThreeLine: true,
-              trailing: IconButton(
-                icon: const Icon(Icons.block),
-                onPressed: () async {
-                  final now = DateTime.now();
-                  await session.api.post('/spots/${s['id']}/blocks', {
-                    'startAt': now.toIso8601String(),
-                    'endAt': now.add(const Duration(days: 1)).toIso8601String(),
-                    'reason': 'Coming home early',
-                  });
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Blocked 24h')));
-                  }
-                },
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('${s['area']} · Tk ${s['monthlyPrice']}'),
+                    subtitle: Text(
+                      '${s['address']}\n${s['verifiedStatus']} · autoApprove ${s['autoApprove']}\n'
+                      'Availability rules: ${availability.length} · active blocks: ${blocks.length}',
+                    ),
+                    isThreeLine: true,
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Edit'), onPressed: () => _edit(s)),
+                      OutlinedButton.icon(icon: const Icon(Icons.event_busy, size: 16), label: const Text('Block'), onPressed: () => _blockSpot(s)),
+                      OutlinedButton.icon(icon: const Icon(Icons.calendar_month, size: 16), label: const Text('Calendar'), onPressed: () => _showSpotCalendar(s)),
+                    ],
+                  ),
+                ],
               ),
             ),
           );
@@ -663,10 +833,41 @@ class _HostHomeState extends State<HostHome> {
       ],
     );
   }
+
+  Widget _hostMetric(String label, String value) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Pb.ink.withOpacity(0.06))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(color: Pb.muted, fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(color: Pb.ink, fontSize: 20, fontWeight: FontWeight.w900)),
+      ]),
+    );
+  }
+
+  Widget _payoutCard() {
+    final method = session.user?['payoutMethod']?.toString();
+    final destination = session.user?['payoutDestination']?.toString();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Pb.ink.withOpacity(0.06))),
+      child: Row(
+        children: [
+          const Icon(Icons.account_balance_wallet_outlined, color: Pb.yellowDeep),
+          const SizedBox(width: 10),
+          Expanded(child: Text(method == null || method.isEmpty ? 'Payout account not set' : '$method · ${destination ?? ''}', style: const TextStyle(fontWeight: FontWeight.w800))),
+          TextButton(onPressed: _editPayout, child: const Text('Set')),
+        ],
+      ),
+    );
+  }
 }
 
 class ListSpotPage extends StatefulWidget {
-  const ListSpotPage({super.key});
+  const ListSpotPage({super.key, this.initialSpot});
+  final Map<String, dynamic>? initialSpot;
   @override
   State<ListSpotPage> createState() => _ListSpotPageState();
 }
@@ -704,6 +905,31 @@ class _ListSpotPageState extends State<ListSpotPage> {
   @override
   void initState() {
     super.initState();
+    final spot = widget.initialSpot;
+    if (spot != null) {
+      address.text = spot['address']?.toString() ?? '';
+      area.text = spot['area']?.toString() ?? '';
+      lat.text = spot['lat']?.toString() ?? '';
+      lng.text = spot['lng']?.toString() ?? '';
+      hourly.text = spot['hourlyPrice']?.toString() ?? '';
+      daily.text = spot['dailyPrice']?.toString() ?? '';
+      monthly.text = spot['monthlyPrice']?.toString() ?? '';
+      widthM.text = spot['widthM']?.toString() ?? widthM.text;
+      lengthM.text = spot['lengthM']?.toString() ?? lengthM.text;
+      vehicleSizes.text = spot['vehicleSizes']?.toString() ?? vehicleSizes.text;
+      accessType = spot['accessType']?.toString() ?? accessType;
+      accessNotes.text = spot['accessNotes']?.toString() ?? accessNotes.text;
+      entrancePhoto.text = spot['entrancePhotoUrl']?.toString() ?? entrancePhoto.text;
+      bayPhoto.text = spot['bayPhotoUrl']?.toString() ?? bayPhoto.text;
+      ownershipProof.text = spot['ownershipProofUrl']?.toString() ?? ownershipProof.text;
+      final photos = spot['photos'];
+      if (photos is List && photos.isNotEmpty) photo.text = photos.first.toString();
+      covered = spot['covered'] == true;
+      autoApprove = spot['autoApprove'] != false;
+      final parsedLat = double.tryParse(lat.text);
+      final parsedLng = double.tryParse(lng.text);
+      if (parsedLat != null && parsedLng != null) markerPoint = LatLng(parsedLat, parsedLng);
+    }
     _fetchSuggestions(area.text);
     area.addListener(() {
       _fetchSuggestions(area.text);
@@ -815,27 +1041,36 @@ class _ListSpotPageState extends State<ListSpotPage> {
     }
     setState(() => loading = true);
     try {
+      final payload = {
+        'lat': parsedLat,
+        'lng': parsedLng,
+        'address': address.text.trim(),
+        'area': area.text.trim(),
+        'covered': covered,
+        'widthM': double.tryParse(widthM.text) ?? 2.5,
+        'lengthM': double.tryParse(lengthM.text) ?? 5.2,
+        'vehicleSizes': vehicleSizes.text.trim().isEmpty ? 'sedan,suv' : vehicleSizes.text.trim(),
+        'hourlyPrice': double.tryParse(hourly.text) ?? 80.0,
+        'dailyPrice': double.tryParse(daily.text) ?? 500.0,
+        'monthlyPrice': double.tryParse(monthly.text) ?? 9000.0,
+        'accessType': accessType,
+        'accessNotes': accessNotes.text.trim(),
+        'photos': [photo.text.trim(), entrancePhoto.text.trim(), bayPhoto.text.trim()],
+        'entrancePhotoUrl': entrancePhoto.text.trim(),
+        'bayPhotoUrl': bayPhoto.text.trim(),
+        'ownershipProofUrl': ownershipProof.text.trim(),
+        'autoApprove': autoApprove,
+      };
+      if (widget.initialSpot != null) {
+        await session.api.patch('/spots/${widget.initialSpot!['id']}', payload);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Spot updated and submitted for review.')));
+          Navigator.pop(context);
+        }
+        return;
+      }
       final spot = Map<String, dynamic>.from(
-        await session.api.post('/spots', {
-          'lat': parsedLat,
-          'lng': parsedLng,
-          'address': address.text.trim(),
-          'area': area.text.trim(),
-          'covered': covered,
-          'widthM': double.tryParse(widthM.text) ?? 2.5,
-          'lengthM': double.tryParse(lengthM.text) ?? 5.2,
-          'vehicleSizes': vehicleSizes.text.trim().isEmpty ? 'sedan,suv' : vehicleSizes.text.trim(),
-          'hourlyPrice': double.tryParse(hourly.text) ?? 80.0,
-          'dailyPrice': double.tryParse(daily.text) ?? 500.0,
-          'monthlyPrice': double.tryParse(monthly.text) ?? 9000.0,
-          'accessType': accessType,
-          'accessNotes': accessNotes.text.trim(),
-          'photos': [photo.text.trim(), entrancePhoto.text.trim(), bayPhoto.text.trim()],
-          'entrancePhotoUrl': entrancePhoto.text.trim(),
-          'bayPhotoUrl': bayPhoto.text.trim(),
-          'ownershipProofUrl': ownershipProof.text.trim(),
-          'autoApprove': autoApprove,
-        }) as Map,
+        await session.api.post('/spots', payload) as Map,
       );
       await session.api.post('/spots/${spot['id']}/availability', {
         'weekdays': [1, 2, 3, 4, 5],
@@ -859,18 +1094,18 @@ class _ListSpotPageState extends State<ListSpotPage> {
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
     return Scaffold(
-      appBar: AppBar(title: Text(i.t('List a new spot', 'নতুন স্পট যোগ করুন'))),
+      appBar: AppBar(title: Text(i.t('List a new spot', 'à¦¨à¦¤à§à¦¨ à¦¸à§à¦ªà¦Ÿ à¦¯à§‹à¦— à¦•à¦°à§à¦¨'))),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          TextField(controller: address, decoration: InputDecoration(labelText: i.t('Address', 'ঠিকানা'))),
+          TextField(controller: address, decoration: InputDecoration(labelText: i.t('Address', 'à¦ à¦¿à¦•à¦¾à¦¨à¦¾'))),
           const SizedBox(height: 12),
-          TextField(controller: area, decoration: InputDecoration(labelText: i.t('Area (e.g. Gulshan)', 'এলাকা (যেমন গুলশান)'))),
+          TextField(controller: area, decoration: InputDecoration(labelText: i.t('Area (e.g. Gulshan)', 'à¦à¦²à¦¾à¦•à¦¾ (à¦¯à§‡à¦®à¦¨ à¦—à§à¦²à¦¶à¦¾à¦¨)'))),
           if (suggestions != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Suggested prices for ${area.text}: ৳${suggestions!['hourly']}/hr · ৳${suggestions!['daily']}/day · ৳${suggestions!['monthly']}/mo',
+                'Suggested prices for ${area.text}: à§³${suggestions!['hourly']}/hr Â· à§³${suggestions!['daily']}/day Â· à§³${suggestions!['monthly']}/mo',
                 style: const TextStyle(color: Pb.muted, fontSize: 13, fontWeight: FontWeight.bold),
               ),
             ),
@@ -941,7 +1176,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
             ],
           ),
           const SizedBox(height: 12),
-          TextField(controller: photo, decoration: InputDecoration(labelText: i.t('Photo URL', 'ছবির ইউআরএল'))),
+          TextField(controller: photo, decoration: InputDecoration(labelText: i.t('Photo URL', 'à¦›à¦¬à¦¿à¦° à¦‡à¦‰à¦†à¦°à¦à¦²'))),
           const SizedBox(height: 12),
           TextField(controller: entrancePhoto, decoration: const InputDecoration(labelText: 'Entrance photo URL')),
           const SizedBox(height: 12),
@@ -951,7 +1186,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             value: accessType,
-            decoration: InputDecoration(labelText: i.t('Access Type', 'প্রবেশদ্বার ধরন')),
+            decoration: InputDecoration(labelText: i.t('Access Type', 'à¦ªà§à¦°à¦¬à§‡à¦¶à¦¦à§à¦¬à¦¾à¦° à¦§à¦°à¦¨')),
             items: ['GUARD', 'GATE_CODE', 'REMOTE'].map((t) {
               return DropdownMenuItem(value: t, child: Text(t));
             }).toList(),
@@ -960,25 +1195,25 @@ class _ListSpotPageState extends State<ListSpotPage> {
             },
           ),
           const SizedBox(height: 12),
-          TextField(controller: accessNotes, decoration: InputDecoration(labelText: i.t('Access Notes', 'প্রবেশদ্বার নোট'))),
+          TextField(controller: accessNotes, decoration: InputDecoration(labelText: i.t('Access Notes', 'à¦ªà§à¦°à¦¬à§‡à¦¶à¦¦à§à¦¬à¦¾à¦° à¦¨à§‹à¦Ÿ'))),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: TextField(controller: widthM, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Width (meters)', 'প্রস্থ (মিটার)')))),
+              Expanded(child: TextField(controller: widthM, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Width (meters)', 'à¦ªà§à¦°à¦¸à§à¦¥ (à¦®à¦¿à¦Ÿà¦¾à¦°)')))),
               const SizedBox(width: 12),
-              Expanded(child: TextField(controller: lengthM, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Length (meters)', 'দৈর্ঘ্য (মিটার)')))),
+              Expanded(child: TextField(controller: lengthM, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Length (meters)', 'à¦¦à§ˆà¦°à§à¦˜à§à¦¯ (à¦®à¦¿à¦Ÿà¦¾à¦°)')))),
             ],
           ),
           const SizedBox(height: 12),
-          TextField(controller: vehicleSizes, decoration: InputDecoration(labelText: i.t('Supported Vehicle Sizes (comma separated)', 'সমর্থিত গাড়ির সাইজ (কমা দ্বারা আলাদা করুন)'))),
+          TextField(controller: vehicleSizes, decoration: InputDecoration(labelText: i.t('Supported Vehicle Sizes (comma separated)', 'à¦¸à¦®à¦°à§à¦¥à¦¿à¦¤ à¦—à¦¾à§œà¦¿à¦° à¦¸à¦¾à¦‡à¦œ (à¦•à¦®à¦¾ à¦¦à§à¦¬à¦¾à¦°à¦¾ à¦†à¦²à¦¾à¦¦à¦¾ à¦•à¦°à§à¦¨)'))),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: TextField(controller: hourly, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Hourly Price (৳)', 'ঘণ্টাপ্রতি ভাড়া (৳)')))),
+              Expanded(child: TextField(controller: hourly, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Hourly Price (à§³)', 'à¦˜à¦£à§à¦Ÿà¦¾à¦ªà§à¦°à¦¤à¦¿ à¦­à¦¾à§œà¦¾ (à§³)')))),
               const SizedBox(width: 12),
-              Expanded(child: TextField(controller: daily, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Daily Price (৳)', 'দৈনিক ভাড়া (৳)')))),
+              Expanded(child: TextField(controller: daily, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Daily Price (à§³)', 'à¦¦à§ˆà¦¨à¦¿à¦• à¦­à¦¾à§œà¦¾ (à§³)')))),
               const SizedBox(width: 12),
-              Expanded(child: TextField(controller: monthly, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Monthly Price (৳)', 'মাসিক ভাড়া (৳)')))),
+              Expanded(child: TextField(controller: monthly, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: i.t('Monthly Price (à§³)', 'à¦®à¦¾à¦¸à¦¿à¦• à¦­à¦¾à§œà¦¾ (à§³)')))),
             ],
           ),
           const SizedBox(height: 16),
@@ -990,7 +1225,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
             onChanged: (v) => setState(() => covered = v),
           ),
           SwitchListTile(
-            title: Text(i.t('Auto-approve Bookings', 'স্বয়ংক্রিয় বুকিং অনুমোদন')),
+            title: Text(i.t('Auto-approve Bookings', 'à¦¸à§à¦¬à§Ÿà¦‚à¦•à§à¦°à¦¿à§Ÿ à¦¬à§à¦•à¦¿à¦‚ à¦…à¦¨à§à¦®à§‹à¦¦à¦¨')),
             value: autoApprove,
             activeColor: Pb.ink,
             activeTrackColor: Pb.yellow,
@@ -998,7 +1233,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
           ),
           const SizedBox(height: 24),
           YellowCta(
-            label: loading ? '…' : i.t('Submit Spot', 'স্পট জমা দিন'),
+            label: loading ? 'â€¦' : i.t('Submit Spot', 'à¦¸à§à¦ªà¦Ÿ à¦œà¦®à¦¾ à¦¦à¦¿à¦¨'),
             onPressed: loading ? null : _submit,
           ),
         ],

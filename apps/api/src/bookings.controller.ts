@@ -144,9 +144,9 @@ export class BookingsController {
   decide(
     @Req() req: { user: { id: string } },
     @Param('id') id: string,
-    @Body() body: { approve: boolean },
+    @Body() body: { approve: boolean; reason?: string },
   ) {
-    return this.bookings.decide(req.user.id, id, body.approve);
+    return this.bookings.decide(req.user.id, id, body.approve, body.reason);
   }
 
   @Post('bookings/:id/check')

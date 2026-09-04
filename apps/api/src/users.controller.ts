@@ -39,6 +39,12 @@ class PatchMeDto {
   @IsOptional()
   @IsString()
   fcmToken?: string;
+  @IsOptional()
+  @IsString()
+  payoutMethod?: string;
+  @IsOptional()
+  @IsString()
+  payoutDestination?: string;
 }
 
 @Controller()
@@ -57,6 +63,35 @@ export class UsersController {
   @Patch('me')
   patch(@Req() req: { user: { id: string } }, @Body() dto: PatchMeDto) {
     return this.prisma.user.update({ where: { id: req.user.id }, data: dto });
+  }
+
+  @Get('host/summary')
+  async hostSummary(@Req() req: { user: { id: string } }) {
+    const [spots, upcoming, pending, completed, cancelled, payouts] = await Promise.all([
+      this.prisma.parkingSpot.findMany({
+        where: { hostId: req.user.id },
+        include: { availability: true, blocks: { orderBy: { startAt: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.booking.count({
+        where: { spot: { hostId: req.user.id }, status: { in: ['PENDING', 'CONFIRMED', 'ACTIVE'] } },
+      }),
+      this.prisma.booking.count({ where: { spot: { hostId: req.user.id }, status: 'PENDING' } }),
+      this.prisma.booking.count({ where: { spot: { hostId: req.user.id }, status: 'COMPLETED' } }),
+      this.prisma.booking.count({ where: { spot: { hostId: req.user.id }, status: 'CANCELLED' } }),
+      this.prisma.transaction.aggregate({
+        where: { userId: req.user.id, type: 'PAYOUT', status: 'SUCCESS' },
+        _sum: { amount: true },
+      }),
+    ]);
+    return {
+      spots,
+      upcomingBookings: upcoming,
+      pendingRequests: pending,
+      completedBookings: completed,
+      cancelledBookings: cancelled,
+      earnings: payouts._sum.amount ?? 0,
+    };
   }
 
   @Post('me/vehicles')
