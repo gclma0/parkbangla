@@ -134,6 +134,11 @@ export class SpotsController {
     @Query('lng') lng?: string,
     @Query('maxKm') maxKm?: string,
     @Query('covered') covered?: string,
+    @Query('vehicleSize') vehicleSize?: string,
+    @Query('accessType') accessType?: AccessType,
+    @Query('verifiedOnly') verifiedOnly?: string,
+    @Query('maxHourly') maxHourly?: string,
+    @Query('maxDaily') maxDaily?: string,
     @Query('maxMonthly') maxMonthly?: string,
     @Query('q') q?: string,
     @Query('north') north?: string,
@@ -172,6 +177,11 @@ export class SpotsController {
     }
     if (covered === 'true') filters.push({ covered: true });
     if (covered === 'false') filters.push({ covered: false });
+    if (vehicleSize && vehicleSize !== 'any') filters.push({ vehicleSizes: { contains: vehicleSize, mode: 'insensitive' } });
+    if (accessType && Object.values(AccessType).includes(accessType)) filters.push({ accessType });
+    if (verifiedOnly === 'true') filters.push({ verifiedStatus: VerifiedStatus.VERIFIED, host: { idVerified: true } });
+    if (maxHourly) filters.push({ hourlyPrice: { lte: Number(maxHourly) } });
+    if (maxDaily) filters.push({ dailyPrice: { lte: Number(maxDaily) } });
     if (maxMonthly) filters.push({ monthlyPrice: { lte: Number(maxMonthly) } });
     if (q) {
       filters.push({

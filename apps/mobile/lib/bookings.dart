@@ -232,7 +232,7 @@ class _BookingsPageState extends State<BookingsPage> {
                                         await session.api.post('/bookings/${b['id']}/decide', {'approve': true});
                                         _load();
                                       } catch (e) {
-                                        if (mounted) {
+                                        if (context.mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                                         }
                                       }

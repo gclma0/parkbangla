@@ -114,7 +114,7 @@ class _WalletPageState extends State<WalletPage> {
               await session.api.post('/wallet/topup', {'amount': 2000, 'method': method});
               await session.refreshMe();
               _load();
-              if (mounted) {
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(i.t('Top up of ৳2,000 successful!', '২,০০০ টাকা টপ আপ সফল হয়েছে!'))),
                 );
@@ -129,13 +129,13 @@ class _WalletPageState extends State<WalletPage> {
                   await session.api.post('/wallet/withdraw', {'amount': 500, 'destination': method});
                   await session.refreshMe();
                   _load();
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(i.t('Withdraw of ৳500 successful!', '৫০০ টাকা প্রত্যাহার সফল হয়েছে!'))),
                     );
                   }
                 } catch (e) {
-                  if (mounted) {
+                  if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 }

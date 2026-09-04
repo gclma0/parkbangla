@@ -164,7 +164,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                         const SizedBox(height: 4),
                         Text(
                           '${spot!['address']}',
-                          style: TextStyle(color: Pb.muted, fontSize: 14),
+                          style: const TextStyle(color: Pb.muted, fontSize: 14),
                         ),
                         const SizedBox(height: 10),
                         _verificationNotice(spot!),
@@ -254,7 +254,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                                       const SizedBox(width: 4),
                                       Text(
                                         '${(host['ratingAvg'] as num?)?.toStringAsFixed(1) ?? '—'} (${host['ratingCount'] ?? 0} reviews)',
-                                        style: TextStyle(color: Pb.muted, fontSize: 12),
+                                        style: const TextStyle(color: Pb.muted, fontSize: 12),
                                       ),
                                     ],
                                   ),
@@ -294,7 +294,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                             alignment: Alignment.center,
                             child: Text(
                               i.t('No reviews for this spot yet.', 'এই স্পটের জন্য এখনো কোনো রিভিউ নেই।'),
-                              style: TextStyle(color: Pb.muted, fontSize: 13, fontStyle: FontStyle.italic),
+                              style: const TextStyle(color: Pb.muted, fontSize: 13, fontStyle: FontStyle.italic),
                             ),
                           )
                         else
@@ -349,7 +349,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                                     const SizedBox(height: 8),
                                     Text(
                                       dateStr,
-                                      style: TextStyle(color: Pb.muted, fontSize: 11),
+                                      style: const TextStyle(color: Pb.muted, fontSize: 11),
                                     ),
                                   ],
                                 ),
@@ -393,7 +393,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
   Widget _priceItem(String label, String value) {
     return Column(
       children: [
-        Text(label, style: TextStyle(color: Pb.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(label, style: const TextStyle(color: Pb.muted, fontSize: 11, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink)),
       ],
@@ -434,7 +434,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(color: Pb.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(label, style: const TextStyle(color: Pb.muted, fontSize: 11, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Pb.ink)),
         ],
@@ -486,6 +486,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
+    final monthly = (widget.spot['monthlyPrice'] as num?)?.toDouble() ?? 0;
+    final wallet = (session.user?['walletBalance'] as num?)?.toDouble() ?? 0;
     return Scaffold(
       appBar: AppBar(title: Text(i.getPass)),
       body: Padding(
@@ -501,6 +503,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
             const SizedBox(height: 8),
             Text(i.t('Paid from wallet. 15% platform fee is taken from the host, not added on top.',
                 'ওয়ালেট থেকে কাটা হবে। হোস্টের পেআউট থেকে ১৫% কমিশন কাটা হয়।')),
+            const SizedBox(height: 16),
+            _costBreakdown([
+              _CostLine('Monthly pass', monthly),
+              const _CostLine('Renter platform fee', 0.0),
+              _CostLine('Wallet after hold', wallet - monthly),
+            ], note: 'Cancellation before check-in refunds 80% to wallet. Host commission is not added to your fare.'),
             if (err != null) Padding(padding: const EdgeInsets.only(top: 16), child: Text(err!, style: const TextStyle(color: Colors.red))),
             const Spacer(),
             YellowCta(label: loading ? '…' : i.t('Confirm pass', 'পাস নিশ্চিত করুন'), onPressed: loading ? null : _buy),
@@ -509,6 +517,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
     );
   }
+}
+
+class _CostLine {
+  const _CostLine(this.label, this.amount);
+  final String label;
+  final double amount;
+}
+
+Widget _costBreakdown(List<_CostLine> lines, {required String note}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Pb.ink.withOpacity(0.06)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Cost breakdown', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+        const SizedBox(height: 10),
+        ...lines.map(
+          (line) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                Expanded(child: Text(line.label, style: const TextStyle(color: Pb.muted, fontSize: 12))),
+                Text('৳${line.amount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 16),
+        Text(note, style: const TextStyle(color: Pb.muted, fontSize: 12, height: 1.35)),
+      ],
+    ),
+  );
 }
 
 class MatchPage extends StatelessWidget {
@@ -694,10 +740,12 @@ class _CheckInPageState extends State<CheckInPage> {
                     'rating': selectedRating,
                     'comment': commentController.text.trim(),
                   });
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                   _load();
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+                  }
                 }
               },
               child: Text(i.t('Submit', 'জমা দিন')),
@@ -717,7 +765,7 @@ class _CheckInPageState extends State<CheckInPage> {
     final renterLat = spotLat + 0.001;
     final renterLng = spotLng - 0.001;
 
-    final double distKm = 111.0 * (renterLat - spotLat).abs();
+    final double distKm = const Distance().as(LengthUnit.Kilometer, LatLng(renterLat, renterLng), LatLng(spotLat, spotLng));
     
     if (distKm <= 0.5) {
       final isCheckingOut = b!['status'] == 'ACTIVE';
@@ -975,6 +1023,8 @@ class _InstantCheckoutPageState extends State<InstantCheckoutPage> {
     final rate = isHourly ? widget.spot['hourlyPrice'] : widget.spot['dailyPrice'];
     final count = isHourly ? hours.toInt() : days.toInt();
     final total = rate * count;
+    final totalAmount = (total as num).toDouble();
+    final wallet = (session.user?['walletBalance'] as num?)?.toDouble() ?? 0;
 
     return Scaffold(
       appBar: AppBar(title: Text(i.t('Instant Booking', 'ইনস্ট্যান্ট বুকিং'))),
@@ -1041,6 +1091,12 @@ class _InstantCheckoutPageState extends State<InstantCheckoutPage> {
               isHourly ? '৳${widget.spot['hourlyPrice']}/hr' : '৳${widget.spot['dailyPrice']}/day',
               style: const TextStyle(color: Pb.muted, fontWeight: FontWeight.w700),
             ),
+            const SizedBox(height: 12),
+            _costBreakdown([
+              _CostLine(isHourly ? 'Hourly parking' : 'Daily parking', totalAmount),
+              const _CostLine('Renter platform fee', 0.0),
+              _CostLine('Wallet after hold', wallet - totalAmount),
+            ], note: 'This amount is held from wallet. Final hourly/daily cost is adjusted at checkout when you leave.'),
             const SizedBox(height: 12),
             Text(i.t(
               'Your wallet balance will be held. The final cost is calculated dynamically when you check out.',

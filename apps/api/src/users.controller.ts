@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -66,6 +67,32 @@ export class UsersController {
   @Delete('me/vehicles/:id')
   async delVehicle(@Req() req: { user: { id: string } }, @Param('id') id: string) {
     await this.prisma.vehicle.deleteMany({ where: { id, userId: req.user.id } });
+    return { ok: true };
+  }
+
+  @Get('me/favorites')
+  favorites(@Req() req: { user: { id: string } }) {
+    return this.prisma.favoriteSpot.findMany({
+      where: { userId: req.user.id },
+      include: { spot: { include: { host: { select: { id: true, name: true, ratingAvg: true, ratingCount: true, idVerified: true } } } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('me/favorites/:spotId')
+  async addFavorite(@Req() req: { user: { id: string } }, @Param('spotId') spotId: string) {
+    const spot = await this.prisma.parkingSpot.findFirst({ where: { id: spotId, active: true }, select: { id: true } });
+    if (!spot) throw new BadRequestException('Spot not found.');
+    return this.prisma.favoriteSpot.upsert({
+      where: { userId_spotId: { userId: req.user.id, spotId } },
+      create: { userId: req.user.id, spotId },
+      update: {},
+    });
+  }
+
+  @Delete('me/favorites/:spotId')
+  async removeFavorite(@Req() req: { user: { id: string } }, @Param('spotId') spotId: string) {
+    await this.prisma.favoriteSpot.deleteMany({ where: { userId: req.user.id, spotId } });
     return { ok: true };
   }
 

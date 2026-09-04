@@ -88,6 +88,7 @@ model User {
   notifications Notification[]
   ledger        WalletLedger[]
   reports       Report[]
+  favorites     FavoriteSpot[]
 }
 
 model OtpChallenge {
@@ -144,11 +145,25 @@ model ParkingSpot {
   availability   Availability[]
   blocks         SpotBlock[]
   bookings       Booking[]
+  favoritedBy    FavoriteSpot[]
 
   @@index([active, lat, lng])
   @@index([active, area])
   @@index([hostId, active])
   @@index([verifiedStatus])
+}
+
+model FavoriteSpot {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spotId    String
+  spot      ParkingSpot @relation(fields: [spotId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, spotId])
+  @@index([userId, createdAt])
+  @@index([spotId])
 }
 
 model Availability {

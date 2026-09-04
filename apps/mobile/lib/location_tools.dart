@@ -124,8 +124,10 @@ Future<LocationResult> getCurrentLocation({Duration timeout = const Duration(sec
 
   try {
     final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.best,
-      timeLimit: timeout,
+      locationSettings: LocationSettings(
+        accuracy: LocationAccuracy.best,
+        timeLimit: timeout,
+      ),
     );
     return LocationResult(
       status: LocationStatus.granted,

@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { BookingStatus } from '@prisma/client';
 import { BookingsController } from './bookings.controller';
 import { WalletController } from './wallet.controller';
+import { UsersController } from './users.controller';
 
 describe('booking access control', () => {
   it('scopes booking detail to the renter or spot host', async () => {
@@ -75,5 +76,25 @@ describe('wallet validation', () => {
       () => controller.topup({ user: { id: 'user_1' } }, { amount: -1, method: 'bKash' }),
       BadRequestException,
     );
+  });
+});
+
+describe('favorites', () => {
+  it('saves favorite spots with the signed-in user scope', async () => {
+    const prisma = {
+      parkingSpot: {
+        findFirst: async () => ({ id: 'spot_1' }),
+      },
+      favoriteSpot: {
+        upsert: async (args: unknown) => args,
+      },
+    };
+    const controller = new UsersController(prisma as never);
+
+    const result = await controller.addFavorite({ user: { id: 'user_1' } }, 'spot_1');
+
+    assert.deepEqual((result as unknown as { where: unknown }).where, {
+      userId_spotId: { userId: 'user_1', spotId: 'spot_1' },
+    });
   });
 });

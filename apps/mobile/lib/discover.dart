@@ -31,6 +31,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
   bool mapLoading = false;
   bool locating = false;
   bool availableNow = false;
+  bool verifiedOnly = false;
+  bool savedOnly = false;
+  bool showRenterTips = false;
   bool showSearchArea = false;
   bool _mapReady = false;
   String? err;
@@ -46,17 +49,28 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Map<String, dynamic>? selectedSpot;
   double maxKm = 12;
   bool? covered;
+  String vehicleSize = 'any';
+  String accessType = 'any';
+  String priceMode = 'monthly';
   double maxMonthly = 15000;
+  double maxDaily = 1500;
+  double maxHourly = 250;
+  Set<String> favoriteSpotIds = {};
   Timer? _searchDebounce;
   StreamSubscription<Position>? _positionSub;
   int _loadSeq = 0;
   int _suggestSeq = 0;
 
+  List<Map<String, dynamic>> get _visibleSpots =>
+      savedOnly ? spots.where((spot) => favoriteSpotIds.contains(spot['id']?.toString())).toList() : spots;
+
   @override
   void initState() {
     super.initState();
     _loadRecentSearches();
+    _loadRenterTips();
     _load();
+    _loadFavorites();
     _locate(centerMap: true, silentFailure: true);
   }
 
@@ -77,7 +91,12 @@ class _DiscoverPageState extends State<DiscoverPage> {
     };
     if (covered == true) q['covered'] = 'true';
     if (covered == false) q['covered'] = 'false';
-    if (maxMonthly < 15000) q['maxMonthly'] = maxMonthly.toStringAsFixed(0);
+    if (vehicleSize != 'any') q['vehicleSize'] = vehicleSize;
+    if (accessType != 'any') q['accessType'] = accessType;
+    if (verifiedOnly) q['verifiedOnly'] = 'true';
+    if (priceMode == 'hourly' && maxHourly < 250) q['maxHourly'] = maxHourly.toStringAsFixed(0);
+    if (priceMode == 'daily' && maxDaily < 1500) q['maxDaily'] = maxDaily.toStringAsFixed(0);
+    if (priceMode == 'monthly' && maxMonthly < 15000) q['maxMonthly'] = maxMonthly.toStringAsFixed(0);
     if (availableNow) {
       final now = DateTime.now();
       final later = now.add(const Duration(hours: 1));
@@ -212,6 +231,66 @@ class _DiscoverPageState extends State<DiscoverPage> {
     setState(() => recentSearches = prefs.getStringList('recent_searches') ?? []);
   }
 
+  Future<void> _loadRenterTips() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => showRenterTips = prefs.getBool('renter_tips_seen') != true);
+  }
+
+  Future<void> _dismissRenterTips() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('renter_tips_seen', true);
+    if (mounted) setState(() => showRenterTips = false);
+  }
+
+  Future<void> _loadFavorites() async {
+    if (session.api.token == null) return;
+    try {
+      final data = await session.api.get('/me/favorites');
+      if (!mounted || data is! List) return;
+      setState(() {
+        favoriteSpotIds = data
+            .map((raw) => Map<String, dynamic>.from(raw as Map))
+            .map((fav) => Map<String, dynamic>.from(fav['spot'] as Map? ?? {})['id']?.toString())
+            .whereType<String>()
+            .toSet();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFavorite(Map<String, dynamic> spot) async {
+    if (session.api.token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sign in to save spots.')));
+      return;
+    }
+    final id = spot['id']?.toString();
+    if (id == null) return;
+    final saved = favoriteSpotIds.contains(id);
+    setState(() {
+      if (saved) {
+        favoriteSpotIds.remove(id);
+      } else {
+        favoriteSpotIds.add(id);
+      }
+    });
+    try {
+      if (saved) {
+        await session.api.delete('/me/favorites/$id');
+      } else {
+        await session.api.post('/me/favorites/$id', {});
+      }
+    } catch (e) {
+      setState(() {
+        if (saved) {
+          favoriteSpotIds.add(id);
+        } else {
+          favoriteSpotIds.remove(id);
+        }
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update saved spot: $e')));
+    }
+  }
+
   Future<void> _saveRecentSearch(String value) async {
     final term = value.trim();
     if (term.length < 2) return;
@@ -236,6 +315,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   void _showSpotPreview(Map<String, dynamic> spot) {
     final distance = spot['distanceKm'];
+    final spotId = spot['id']?.toString();
+    final saved = spotId != null && favoriteSpotIds.contains(spotId);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -267,6 +348,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       ],
                     ),
                   ),
+                  IconButton(
+                    tooltip: saved ? 'Remove saved spot' : 'Save spot',
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _toggleFavorite(spot);
+                    },
+                    icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border),
+                    color: Pb.ink,
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -277,6 +367,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   _previewChip('৳${spot['hourlyPrice']}/hr'),
                   _previewChip('৳${spot['monthlyPrice']}/mo'),
                   _previewChip(spot['covered'] == true ? 'Covered' : 'Open-air'),
+                  _previewChip('${spot['accessType'] ?? 'Access'}'),
+                  _previewChip(spot['verified'] == true ? 'Verified' : '${spot['verifiedStatus'] ?? 'Unverified'}'),
                   if (distance != null) _previewChip('$distance km'),
                 ],
               ),
@@ -395,13 +487,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
     final i = I18n(session.bn);
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Pb.cream,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).viewInsets.bottom),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -420,11 +513,66 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
+                  const Text('Vehicle size', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _filterChip('Any', vehicleSize == 'any', () => setSheetState(() => setState(() => vehicleSize = 'any'))),
+                      _filterChip('Sedan', vehicleSize == 'sedan', () => setSheetState(() => setState(() => vehicleSize = 'sedan'))),
+                      _filterChip('SUV', vehicleSize == 'suv', () => setSheetState(() => setState(() => vehicleSize = 'suv'))),
+                      _filterChip('Microbus', vehicleSize == 'microbus', () => setSheetState(() => setState(() => vehicleSize = 'microbus'))),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Access type', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _filterChip('Any', accessType == 'any', () => setSheetState(() => setState(() => accessType = 'any'))),
+                      _filterChip('Guard', accessType == 'GUARD', () => setSheetState(() => setState(() => accessType = 'GUARD'))),
+                      _filterChip('Gate code', accessType == 'GATE_CODE', () => setSheetState(() => setState(() => accessType = 'GATE_CODE'))),
+                      _filterChip('Remote', accessType == 'REMOTE', () => setSheetState(() => setState(() => accessType = 'REMOTE'))),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Verified only', style: TextStyle(fontWeight: FontWeight.w700)),
+                    value: verifiedOnly,
+                    activeColor: Pb.ink,
+                    activeTrackColor: Pb.yellow,
+                    onChanged: (v) => setSheetState(() => setState(() => verifiedOnly = v)),
+                  ),
+                  const SizedBox(height: 12),
                   Text('Distance Radius: ${maxKm.toStringAsFixed(0)} km', style: const TextStyle(fontWeight: FontWeight.w700)),
                   Slider(value: maxKm, min: 1, max: 30, divisions: 29, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxKm = v))),
                   const SizedBox(height: 12),
-                  Text('Max Monthly Price: ৳${maxMonthly >= 15000 ? 'Any' : maxMonthly.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Slider(value: maxMonthly, min: 2000, max: 15000, divisions: 13, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxMonthly = v))),
+                  const Text('Price focus', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(child: ChoiceChip(label: const Center(child: Text('Hourly')), selected: priceMode == 'hourly', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'hourly')))),
+                      const SizedBox(width: 8),
+                      Expanded(child: ChoiceChip(label: const Center(child: Text('Daily')), selected: priceMode == 'daily', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'daily')))),
+                      const SizedBox(width: 8),
+                      Expanded(child: ChoiceChip(label: const Center(child: Text('Monthly')), selected: priceMode == 'monthly', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'monthly')))),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (priceMode == 'hourly') ...[
+                    Text('Max Hourly Price: ৳${maxHourly >= 250 ? 'Any' : maxHourly.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Slider(value: maxHourly, min: 50, max: 250, divisions: 8, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxHourly = v))),
+                  ] else if (priceMode == 'daily') ...[
+                    Text('Max Daily Price: ৳${maxDaily >= 1500 ? 'Any' : maxDaily.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Slider(value: maxDaily, min: 200, max: 1500, divisions: 13, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxDaily = v))),
+                  ] else ...[
+                    Text('Max Monthly Price: ৳${maxMonthly >= 15000 ? 'Any' : maxMonthly.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Slider(value: maxMonthly, min: 2000, max: 15000, divisions: 13, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxMonthly = v))),
+                  ],
                   const SizedBox(height: 12),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -448,6 +596,107 @@ class _DiscoverPageState extends State<DiscoverPage> {
           },
         );
       },
+    );
+  }
+
+  Widget _filterChip(String label, bool selected, VoidCallback onSelected) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+    );
+  }
+
+  Widget _renterTips() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Pb.ink.withOpacity(0.06)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.route_outlined, color: Pb.yellowDeep),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Search an area, filter by fit and access, save good spots, then check the price breakdown before booking.',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Pb.ink),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Dismiss',
+            onPressed: _dismissRenterTips,
+            icon: const Icon(Icons.close, size: 18),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState(I18n i, {bool map = false}) {
+    final locationBlocked = locationStatus != LocationStatus.granted && locationStatus != LocationStatus.loading;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(map ? Icons.map_outlined : Icons.local_parking_outlined, size: 46, color: Pb.muted),
+            const SizedBox(height: 12),
+            Text(
+              locationBlocked ? 'No nearby spots from this view' : 'No spots match these filters',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Pb.ink),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              locationBlocked
+                  ? _locationHelp(locationStatus)
+                  : 'Try a wider distance, another price focus, or turn off Available now.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Pb.muted, fontSize: 13, height: 1.35),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.tune),
+                  label: const Text('Adjust filters'),
+                  onPressed: _showFilters,
+                ),
+                FilledButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reset'),
+                  style: FilledButton.styleFrom(backgroundColor: Pb.ink, foregroundColor: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      covered = null;
+                      vehicleSize = 'any';
+                      accessType = 'any';
+                      priceMode = 'monthly';
+                      verifiedOnly = false;
+                      availableNow = false;
+                      maxKm = 12;
+                      maxHourly = 250;
+                      maxDaily = 1500;
+                      maxMonthly = 15000;
+                    });
+                    _load(visibleBounds: mapMode && _mapReady);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -477,6 +726,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
           ),
         ),
         _searchBar(i),
+        if (showRenterTips) _renterTips(),
         if (err != null)
           Padding(
             padding: const EdgeInsets.all(16),
@@ -491,7 +741,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 const SizedBox(width: 8),
                 Expanded(child: Text(_locationHelp(locationStatus), style: const TextStyle(color: Pb.muted, fontSize: 12))),
                 if (locationStatus == LocationStatus.permanentlyDenied)
-                  TextButton(onPressed: Geolocator.openAppSettings, child: const Text('Settings')),
+                  const TextButton(onPressed: Geolocator.openAppSettings, child: Text('Settings')),
               ],
             ),
           ),
@@ -499,10 +749,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
         if (!loading && err == null)
           Expanded(
             child: mapMode
-                ? _map()
+                ? (_visibleSpots.isEmpty ? _emptyState(i, map: true) : _map())
                 : Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: SpotDeck(spots: spots, onTap: (spot) => _selectSpot(spot)),
+                    child: _visibleSpots.isEmpty ? _emptyState(i) : SpotDeck(spots: _visibleSpots, onTap: (spot) => _selectSpot(spot)),
                   ),
           ),
       ],
@@ -546,6 +796,23 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () {
+                  setState(() => savedOnly = !savedOnly);
+                  if (savedOnly) _loadFavorites();
+                },
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: savedOnly ? Pb.yellow : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
+                  ),
+                  child: Icon(savedOnly ? Icons.bookmark : Icons.bookmark_border, color: Pb.ink),
                 ),
               ),
               const SizedBox(width: 8),
@@ -756,10 +1023,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   List<List<Map<String, dynamic>>> _clusteredSpots() {
-    if (_zoom >= 16.5) return spots.map((s) => [s]).toList();
+    if (_zoom >= 16.5) return _visibleSpots.map((s) => [s]).toList();
     final cell = _zoom < 12 ? 0.04 : _zoom < 14 ? 0.018 : 0.006;
     final buckets = <String, List<Map<String, dynamic>>>{};
-    for (final spot in spots) {
+    for (final spot in _visibleSpots) {
       final lat = (spot['lat'] as num).toDouble();
       final lng = (spot['lng'] as num).toDouble();
       final key = '${(lat / cell).floor()}:${(lng / cell).floor()}';

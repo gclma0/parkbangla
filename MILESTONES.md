@@ -187,6 +187,8 @@ Manual QA:
 
 Goal: make finding and booking parking fast and clear.
 
+Status: completed for the current renter booking flow. Production UX research, richer saved-spot screens, and full Bangla copy review can continue later.
+
 Must do:
 - Add filter controls for vehicle size, covered/open-air, security, access type, price, distance, availability now, hourly/daily/monthly.
 - Add parking cards synchronized with selected map marker.
@@ -201,6 +203,35 @@ Acceptance:
 - A renter can find a suitable available spot in under a few taps.
 - Booking price, rules, and access method are clear before confirmation.
 - Map and list never show contradictory selected spots.
+
+Completed implementation:
+- Added backend spot filters for vehicle size, access type, verified-only/security, and hourly/daily/monthly price caps.
+- Added API-backed saved spots with scoped favorite list, save, and remove endpoints.
+- Added a Saved toggle in Discover so renters can return to saved spots.
+- Expanded Discover filters with vehicle size, covered/open-air, verified-only, access type, distance, available-now, and hourly/daily/monthly price focus.
+- Kept map markers and card deck synchronized by using the same visible spot list after saved/filter state is applied.
+- Added nonblocking renter onboarding tips on Discover with persistent dismissal.
+- Added richer empty states for no nearby results, denied/unavailable location, and too-restrictive filters.
+- Added booking cost breakdowns before commuter-pass and instant booking confirmation.
+- Added clear wallet-hold, platform-fee, and cancellation/refund policy text before confirmation.
+- Fixed core Bangla/English labels in the shared mobile i18n file.
+- Backend tests cover saved-spot scoping.
+
+Manual QA:
+- Open Discover for the first time. Expected: renter tips banner appears without blocking search or map use.
+- Dismiss the tips banner, close and reopen the app. Expected: the banner stays dismissed.
+- Open filters and choose Sedan/SUV/Microbus. Expected: results only include spots whose supported vehicle sizes match.
+- Filter by Guard, Gate code, or Remote. Expected: results only include the selected access type.
+- Toggle Verified only. Expected: only spots with verified spot status and verified host ID appear.
+- Switch price focus between Hourly, Daily, and Monthly, then lower the max price. Expected: results update using the selected price type.
+- Toggle Available now with other filters. Expected: only bookable spots for the current one-hour window appear.
+- Save a spot from the spot preview. Expected: the bookmark state changes and the spot is persisted for the signed-in user.
+- Toggle Saved in Discover. Expected: map markers and cards show only saved spots.
+- Remove a saved spot while Saved is active. Expected: it disappears from the saved-only list.
+- Apply filters that match no results. Expected: a useful empty state appears with Adjust filters and Reset actions.
+- Deny location permission and search manually. Expected: the app still works and explains the location limitation.
+- Open commuter-pass checkout. Expected: renter sees monthly fare, renter platform fee, wallet after hold, and refund policy before confirming.
+- Open instant checkout and switch hourly/daily. Expected: cost breakdown recalculates before confirming.
 
 ## Milestone 6: Host Operations
 

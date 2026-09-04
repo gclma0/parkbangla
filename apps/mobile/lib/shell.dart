@@ -235,7 +235,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               }
                               // Deep-link to booking
                               final bookingId = n['bookingId'];
-                              if (bookingId != null && mounted) {
+                              if (bookingId != null && context.mounted) {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
