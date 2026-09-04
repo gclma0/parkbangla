@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LocationResult {
   const LocationResult({
@@ -83,6 +84,16 @@ class PlaceSuggestion {
   }
 }
 
+class ReverseGeocodeResult {
+  const ReverseGeocodeResult({
+    required this.address,
+    required this.area,
+  });
+
+  final String address;
+  final String area;
+}
+
 Future<LocationResult> getCurrentLocation({Duration timeout = const Duration(seconds: 10)}) async {
   final serviceEnabled = await Geolocator.isLocationServiceEnabled();
   if (!serviceEnabled) {
@@ -156,6 +167,42 @@ Future<List<PlaceSuggestion>> searchOsmPlaces(String query) async {
       .whereType<Map>()
       .map((e) => PlaceSuggestion.fromNominatimJson(Map<String, dynamic>.from(e)))
       .toList();
+}
+
+Future<ReverseGeocodeResult?> reverseGeocodePoint(LatLng point) async {
+  final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
+    'lat': point.latitude.toStringAsFixed(7),
+    'lon': point.longitude.toStringAsFixed(7),
+    'format': 'jsonv2',
+    'addressdetails': '1',
+  });
+  final response = await http.get(uri, headers: const {
+    'User-Agent': 'ParkBangla mobile reverse geocoding',
+  }).timeout(const Duration(seconds: 8));
+
+  if (response.statusCode >= 400) return null;
+  final decoded = jsonDecode(response.body);
+  if (decoded is! Map) return null;
+  final data = Map<String, dynamic>.from(decoded);
+  final address = data['display_name']?.toString() ?? '';
+  final rawAddress = data['address'];
+  final addressMap = rawAddress is Map ? Map<String, dynamic>.from(rawAddress) : <String, dynamic>{};
+  final area = (addressMap['suburb'] ??
+          addressMap['neighbourhood'] ??
+          addressMap['quarter'] ??
+          addressMap['city_district'] ??
+          addressMap['city'] ??
+          addressMap['town'] ??
+          addressMap['village'] ??
+          '')
+      .toString();
+  if (address.trim().isEmpty) return null;
+  return ReverseGeocodeResult(address: address, area: area);
+}
+
+Future<bool> openExternalNavigation(LatLng point) async {
+  final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${point.latitude},${point.longitude}&travelmode=driving');
+  return launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
 double _zoomForOsmType(String type) {

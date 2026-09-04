@@ -11,7 +11,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { AccessType, Prisma, VerifiedStatus } from '@prisma/client';
+import { AccessType, BookingStatus, Prisma, VerifiedStatus } from '@prisma/client';
 import {
   IsArray,
   IsBoolean,
@@ -21,7 +21,7 @@ import {
 } from 'class-validator';
 import { AuthGuard } from './auth.guard';
 import { PrismaService } from './prisma.service';
-import { haversineKm, isValidHHMM, suggestedPrices } from './booking-rules';
+import { availabilityCoversBooking, blockConflictsWithBooking, bookingsConflict, haversineKm, isValidHHMM, suggestedPrices } from './booking-rules';
 
 class CreateSpotDto {
   @IsNumber()
@@ -125,6 +125,11 @@ export class SpotsController {
     @Query('south') south?: string,
     @Query('east') east?: string,
     @Query('west') west?: string,
+    @Query('availableNow') availableNow?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('startTime') startTime?: string,
+    @Query('endTime') endTime?: string,
   ) {
     const northLat = toNumber(north);
     const southLat = toNumber(south);
@@ -167,21 +172,31 @@ export class SpotsController {
       include: {
         host: { select: { id: true, name: true, ratingAvg: true, ratingCount: true, idVerified: true } },
         availability: true,
+        blocks: true,
+        bookings: {
+          where: { status: { in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ACTIVE] } },
+          select: { startDate: true, endDate: true, weekdays: true, startTime: true, endTime: true, status: true, createdAt: true },
+        },
       },
       take: 250,
     });
     const originLat = toNumber(lat);
     const originLng = toNumber(lng);
     const cap = maxKm ? Number(maxKm) : 12;
+    const availabilityWindow = this.availabilityWindow({ availableNow, startDate, endDate, startTime, endTime });
     return spots
-      .map((s) => ({
-        ...s,
-        distanceKm:
-          originLat !== undefined && originLng !== undefined
-            ? Math.round(haversineKm(originLat, originLng, s.lat, s.lng) * 100) / 100
-            : null,
-        verified: s.verifiedStatus === VerifiedStatus.VERIFIED && s.host.idVerified,
-      }))
+      .filter((s) => (availabilityWindow ? this.spotIsAvailable(s, availabilityWindow) : true))
+      .map((s) => {
+        const { bookings: _bookings, blocks: _blocks, ...publicSpot } = s;
+        return {
+          ...publicSpot,
+          distanceKm:
+            originLat !== undefined && originLng !== undefined
+              ? Math.round(haversineKm(originLat, originLng, s.lat, s.lng) * 100) / 100
+              : null,
+          verified: s.verifiedStatus === VerifiedStatus.VERIFIED && s.host.idVerified,
+        };
+      })
       .filter((s) => (hasBounds || s.distanceKm == null ? true : s.distanceKm <= cap))
       .sort((a, b) => (a.distanceKm ?? Number.MAX_VALUE) - (b.distanceKm ?? Number.MAX_VALUE));
   }
@@ -428,5 +443,67 @@ export class SpotsController {
     if (!spot) return { error: 'not found' };
     await this.prisma.spotBlock.delete({ where: { id: blockId } });
     return { ok: true };
+  }
+
+  private availabilityWindow(params: {
+    availableNow?: string;
+    startDate?: string;
+    endDate?: string;
+    startTime?: string;
+    endTime?: string;
+  }) {
+    if (params.availableNow === 'true') {
+      const now = new Date();
+      const later = new Date(now.getTime() + 60 * 60 * 1000);
+      const startTime = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
+      const endTime = `${String(later.getUTCHours()).padStart(2, '0')}:${String(later.getUTCMinutes()).padStart(2, '0')}`;
+      return {
+        startDate: now,
+        endDate: later,
+        weekdays: [now.getUTCDay()],
+        startTime,
+        endTime,
+      };
+    }
+    if (!params.startDate && !params.endDate && !params.startTime && !params.endTime) return null;
+    if (!params.startDate || !params.endDate || !params.startTime || !params.endTime) {
+      throw new BadRequestException('Complete availability search dates and times are required.');
+    }
+    assertTime(params.startTime, 'Start time');
+    assertTime(params.endTime, 'End time');
+    if (params.startTime === params.endTime) throw new BadRequestException('Start time and end time cannot match.');
+    const parsedStart = new Date(params.startDate);
+    const parsedEnd = new Date(params.endDate);
+    if (Number.isNaN(parsedStart.getTime()) || Number.isNaN(parsedEnd.getTime()) || parsedStart > parsedEnd) {
+      throw new BadRequestException('Invalid availability search date range.');
+    }
+    return {
+      startDate: parsedStart,
+      endDate: parsedEnd,
+      weekdays: this.weekdaysBetween(parsedStart, parsedEnd),
+      startTime: params.startTime,
+      endTime: params.endTime,
+    };
+  }
+
+  private weekdaysBetween(startDate: Date, endDate: Date) {
+    const days = new Set<number>();
+    for (let cursor = new Date(startDate); cursor <= endDate; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      days.add(cursor.getUTCDay());
+    }
+    return [...days];
+  }
+
+  private spotIsAvailable(
+    spot: {
+      availability: { weekdays: number[]; startTime: string; endTime: string }[];
+      blocks: { startAt: Date; endAt: Date }[];
+      bookings: { startDate: Date; endDate: Date; weekdays: number[]; startTime: string; endTime: string }[];
+    },
+    window: { startDate: Date; endDate: Date; weekdays: number[]; startTime: string; endTime: string },
+  ) {
+    if (!availabilityCoversBooking(spot.availability, window)) return false;
+    if (spot.blocks.some((block) => blockConflictsWithBooking(block, window))) return false;
+    return !spot.bookings.some((booking) => bookingsConflict(booking, window));
   }
 }

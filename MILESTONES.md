@@ -94,6 +94,8 @@ Manual QA:
 
 Goal: make discovery behave like a modern map-based marketplace.
 
+Status: completed for the current prototype scale. Full PostGIS/geospatial indexing should still be added before large-volume production launch.
+
 Must do:
 - Add database indexes for `ParkingSpot.active`, `lat`, `lng`, `area`, and common search filters.
 - Move to PostGIS or equivalent geo indexing before large-scale launch.
@@ -109,6 +111,31 @@ Acceptance:
 - Search results prioritize actually bookable nearby spots.
 - Hosts can confirm precise entrance location.
 - Renters can open external navigation to the parking entrance.
+
+Completed implementation:
+- Parking spot, availability, block, and booking tables now have indexes for the common discovery and availability lookup paths.
+- Map discovery requests can send visible map bounds so the backend narrows results before returning markers.
+- Spot discovery can filter by a concrete availability window, including the mobile "Available now" filter.
+- The mobile "Available now" filter sends the phone's local one-hour date/time window instead of relying on the hosted server timezone.
+- Search combines app listings and OpenStreetMap place suggestions, and recent searches are saved locally for quick repeat searches.
+- The host listing flow supports current location, address search, map tap placement, and reverse geocoding to fill address/area from exact coordinates.
+- Renters can open external Google Maps navigation from the selected parking spot preview.
+- Host spot listings already carry entrance coordinates, access notes, and photos; the map picker now makes those coordinates easier to confirm.
+
+Manual QA:
+- Open Discover with location permission allowed. Expected: map centers near the device location and nearby spots load.
+- Deny location permission, then open Discover. Expected: app falls back gracefully to the default city view and still loads searchable spots.
+- Search for a known Dhaka area. Expected: internal parking areas/listings and OpenStreetMap suggestions appear.
+- Select an OpenStreetMap suggestion. Expected: map moves to that location and results refresh for the visible area.
+- Repeat a previous search from the empty search box. Expected: recent-search chips appear and selecting one re-runs suggestions.
+- Pan or zoom the map. Expected: the "Search this area" control appears, and tapping it reloads spots inside the current map bounds.
+- Toggle "Available now" in filters. Expected: unavailable or already-booked spots for the current one-hour window disappear.
+- Create a booking or host block for a spot covering the current time, then enable "Available now". Expected: that spot does not appear as available.
+- Select a marker. Expected: the bottom preview matches the selected spot and shows distance, price, verification, and actions.
+- Tap "Navigate" in the spot preview. Expected: Google Maps opens with directions to the spot coordinates.
+- As a host, tap current location in the spot form. Expected: latitude/longitude are filled and the map marker moves there.
+- As a host, tap a precise entrance point on the map. Expected: marker and coordinates update, and reverse geocoding fills address/area when available.
+- Save the spot, then open it as a renter. Expected: the spot detail shows photos/access notes and map/navigation target the chosen entrance point.
 
 ## Milestone 4: Host Trust And Spot Verification
 

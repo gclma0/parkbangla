@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'i18n.dart';
 import 'location_tools.dart';
@@ -29,6 +30,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   bool loading = true;
   bool mapLoading = false;
   bool locating = false;
+  bool availableNow = false;
   bool showSearchArea = false;
   bool _mapReady = false;
   String? err;
@@ -40,6 +42,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   double _zoom = 13;
   List<Map<String, dynamic>> spots = [];
   List<PlaceSuggestion> suggestions = [];
+  List<String> recentSearches = [];
   Map<String, dynamic>? selectedSpot;
   double maxKm = 12;
   bool? covered;
@@ -52,6 +55,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   @override
   void initState() {
     super.initState();
+    _loadRecentSearches();
     _load();
     _locate(centerMap: true, silentFailure: true);
   }
@@ -74,6 +78,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
     if (covered == true) q['covered'] = 'true';
     if (covered == false) q['covered'] = 'false';
     if (maxMonthly < 15000) q['maxMonthly'] = maxMonthly.toStringAsFixed(0);
+    if (availableNow) {
+      final now = DateTime.now();
+      final later = now.add(const Duration(hours: 1));
+      q['startDate'] = _dateParam(now);
+      q['endDate'] = _dateParam(later);
+      q['startTime'] = _timeParam(now);
+      q['endTime'] = _timeParam(later);
+    }
     if (searchController.text.trim().isNotEmpty) q['q'] = searchController.text.trim();
 
     if (visibleBounds && _mapReady) {
@@ -85,6 +97,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
     }
     return q;
   }
+
+  String _dateParam(DateTime value) => value.toIso8601String().split('T').first;
+
+  String _timeParam(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
 
   Future<void> _load({bool visibleBounds = false, bool quiet = false}) async {
     final seq = ++_loadSeq;
@@ -189,6 +206,21 @@ class _DiscoverPageState extends State<DiscoverPage> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => SpotDetailPage(spotId: spot['id'] as String)));
   }
 
+  Future<void> _loadRecentSearches() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => recentSearches = prefs.getStringList('recent_searches') ?? []);
+  }
+
+  Future<void> _saveRecentSearch(String value) async {
+    final term = value.trim();
+    if (term.length < 2) return;
+    final next = [term, ...recentSearches.where((item) => item.toLowerCase() != term.toLowerCase())].take(6).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('recent_searches', next);
+    if (mounted) setState(() => recentSearches = next);
+  }
+
   void _selectSpot(Map<String, dynamic> spot, {bool moveMap = true}) {
     setState(() {
       selectedSpot = spot;
@@ -249,12 +281,29 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              YellowCta(
-                label: 'View Details',
-                onPressed: () {
-                  Navigator.pop(context);
-                  _open(spot);
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.navigation_outlined, size: 18),
+                      label: const Text('Navigate'),
+                      onPressed: () {
+                        final point = LatLng((spot['lat'] as num).toDouble(), (spot['lng'] as num).toDouble());
+                        openExternalNavigation(point);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: YellowCta(
+                      label: 'View Details',
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _open(spot);
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -317,6 +366,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       _zoom = suggestion.zoom;
       mapMode = true;
     });
+    await _saveRecentSearch(suggestion.title);
     if (_mapReady) _mapController.move(suggestion.point, suggestion.zoom);
     await _load(visibleBounds: _mapReady, quiet: true);
     if (suggestion.spotId != null) {
@@ -375,6 +425,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   const SizedBox(height: 12),
                   Text('Max Monthly Price: ৳${maxMonthly >= 15000 ? 'Any' : maxMonthly.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w700)),
                   Slider(value: maxMonthly, min: 2000, max: 15000, divisions: 13, activeColor: Pb.yellowDeep, onChanged: (v) => setSheetState(() => setState(() => maxMonthly = v))),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Available now', style: TextStyle(fontWeight: FontWeight.w700)),
+                    value: availableNow,
+                    activeColor: Pb.ink,
+                    activeTrackColor: Pb.yellow,
+                    onChanged: (v) => setSheetState(() => setState(() => availableNow = v)),
+                  ),
                   const SizedBox(height: 24),
                   YellowCta(
                     label: i.t('Apply Filters', 'Apply Filters'),
@@ -520,6 +579,29 @@ class _DiscoverPageState extends State<DiscoverPage> {
                     onTap: () => _selectSuggestion(s),
                   );
                 }).toList(),
+              ),
+            ),
+          if (suggestions.isEmpty && searchController.text.trim().isEmpty && recentSearches.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: recentSearches.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final term = recentSearches[index];
+                    return ActionChip(
+                      avatar: const Icon(Icons.history, size: 16),
+                      label: Text(term),
+                      onPressed: () {
+                        searchController.text = term;
+                        _fetchSuggestions(term);
+                      },
+                    );
+                  },
+                ),
               ),
             ),
         ],

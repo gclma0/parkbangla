@@ -123,6 +123,11 @@ model ParkingSpot {
   availability   Availability[]
   blocks         SpotBlock[]
   bookings       Booking[]
+
+  @@index([active, lat, lng])
+  @@index([active, area])
+  @@index([hostId, active])
+  @@index([verifiedStatus])
 }
 
 model Availability {
@@ -132,6 +137,8 @@ model Availability {
   weekdays  Int[]
   startTime String
   endTime   String
+
+  @@index([spotId])
 }
 
 model SpotBlock {
@@ -141,6 +148,8 @@ model SpotBlock {
   startAt   DateTime
   endAt     DateTime
   reason    String?
+
+  @@index([spotId, startAt, endAt])
 }
 
 model Booking {
@@ -167,6 +176,9 @@ model Booking {
   disputes    Dispute[]
   checkIns    CheckIn[]
   messages    Message[]
+
+  @@index([spotId, status, startDate, endDate])
+  @@index([renterId, status, createdAt])
 }
 
 model CheckIn {

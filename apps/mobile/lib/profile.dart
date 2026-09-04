@@ -754,6 +754,16 @@ class _ListSpotPageState extends State<ListSpotPage> {
     if (moveMap) _mapController.move(point, 17);
   }
 
+  Future<void> _setMarkerAndAddress(LatLng point, {bool moveMap = true}) async {
+    _setMarker(point, moveMap: moveMap);
+    final place = await reverseGeocodePoint(point);
+    if (!mounted || place == null) return;
+    setState(() {
+      if (address.text.trim().isEmpty) address.text = place.address;
+      if (area.text.trim().isEmpty && place.area.trim().isNotEmpty) area.text = place.area;
+    });
+  }
+
   Future<void> _searchAddress() async {
     final term = '${address.text} ${area.text}'.trim();
     if (term.length < 2) return;
@@ -765,7 +775,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
     }
     final place = places.first;
     _setMarker(place.point);
-    if (address.text.trim().isEmpty) address.text = place.title;
+    if (address.text.trim().isEmpty) address.text = place.subtitle.isNotEmpty ? place.subtitle : place.title;
   }
 
   Future<void> _useCurrentLocation() async {
@@ -777,7 +787,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message ?? 'Current location unavailable.')));
       return;
     }
-    _setMarker(result.point!);
+    await _setMarkerAndAddress(result.point!);
   }
 
   Future<void> _submit() async {
@@ -881,7 +891,7 @@ class _ListSpotPageState extends State<ListSpotPage> {
                   maxZoom: 19,
                   minZoom: 5,
                   interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
-                  onTap: (_, point) => _setMarker(point, moveMap: false),
+                  onTap: (_, point) => _setMarkerAndAddress(point, moveMap: false),
                 ),
                 children: [
                   TileLayer(
