@@ -166,6 +166,8 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                           '${spot!['address']}',
                           style: TextStyle(color: Pb.muted, fontSize: 14),
                         ),
+                        const SizedBox(height: 10),
+                        _verificationNotice(spot!),
                         const SizedBox(height: 16),
                         
                         // Pricing Grid
@@ -395,6 +397,29 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink)),
       ],
+    );
+  }
+
+  Widget _verificationNotice(Map<String, dynamic> spot) {
+    final status = spot['verifiedStatus']?.toString() ?? 'UNVERIFIED';
+    final verified = spot['verified'] == true;
+    final text = verified
+        ? 'Verified spot: identity, photos, proof, and entrance location reviewed.'
+        : status == 'PENDING'
+            ? 'Verification pending: check photos, access notes, and host rating before booking.'
+            : status == 'REJECTED'
+                ? 'Verification rejected: this listing needs correction before it should be trusted.'
+                : 'Unverified spot: review details carefully before booking.';
+    final color = verified ? const Color(0xFFE8F5E9) : const Color(0xFFFFF8E1);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Pb.ink.withOpacity(0.08)),
+      ),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: Pb.ink)),
     );
   }
 

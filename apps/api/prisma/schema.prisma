@@ -20,6 +20,13 @@ enum VerifiedStatus {
   REJECTED
 }
 
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum BookingStatus {
   PENDING
   CONFIRMED
@@ -60,10 +67,15 @@ model User {
   fcmToken      String?
   nidDocUrl     String?
   dlDocUrl      String?
+  kycStatus     KycStatus @default(NOT_SUBMITTED)
+  kycRejectionReason String?
   isAdmin       Boolean   @default(false)
   idVerified    Boolean   @default(false)
   ratingAvg     Float     @default(0)
   ratingCount   Int       @default(0)
+  acceptanceRate Float    @default(0)
+  cancellationRate Float  @default(0)
+  responseMinutesAvg Int?
   walletBalance Float     @default(0)
   locale        String    @default("en")
   createdAt     DateTime  @default(now())
@@ -113,7 +125,16 @@ model ParkingSpot {
   accessType     AccessType     @default(GUARD)
   accessNotes    String?
   photos         String[]
+  entrancePhotoUrl String?
+  bayPhotoUrl      String?
+  ownershipProofUrl String?
   verifiedStatus VerifiedStatus @default(UNVERIFIED)
+  verificationChecklist String[] @default([])
+  verificationNotes String?
+  rejectionReason String?
+  verifiedAt     DateTime?
+  resubmittedAt  DateTime?
+  duplicateCandidateIds String[] @default([])
   autoApprove    Boolean        @default(true)
   hourlyPrice    Float
   dailyPrice     Float

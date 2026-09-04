@@ -54,6 +54,15 @@ class CreateSpotDto {
   @IsArray()
   photos?: string[];
   @IsOptional()
+  @IsString()
+  entrancePhotoUrl?: string;
+  @IsOptional()
+  @IsString()
+  bayPhotoUrl?: string;
+  @IsOptional()
+  @IsString()
+  ownershipProofUrl?: string;
+  @IsOptional()
   @IsBoolean()
   autoApprove?: boolean;
   @IsNumber()
@@ -91,6 +100,12 @@ function assertCoordinates(lat: number, lng: number) {
 function assertMoney(value: number | undefined, label: string) {
   if (value !== undefined && (!Number.isFinite(value) || value <= 0)) {
     throw new BadRequestException(`${label} must be greater than 0.`);
+  }
+}
+
+function assertRequiredText(value: string | undefined, label: string) {
+  if (!value || value.trim().length < 3) {
+    throw new BadRequestException(`${label} is required.`);
   }
 }
 
@@ -321,29 +336,55 @@ export class SpotsController {
   @UseGuards(AuthGuard)
   @Post('spots')
   create(@Req() req: { user: { id: string } }, @Body() dto: CreateSpotDto) {
+    assertRequiredText(dto.address, 'Address');
+    assertRequiredText(dto.area, 'Area');
+    assertRequiredText(dto.accessNotes, 'Access notes');
+    assertRequiredText(dto.entrancePhotoUrl, 'Entrance photo');
+    assertRequiredText(dto.bayPhotoUrl, 'Parking bay photo');
+    assertRequiredText(dto.ownershipProofUrl, 'Ownership or permission proof');
     assertCoordinates(dto.lat, dto.lng);
     assertMoney(dto.hourlyPrice, 'Hourly price');
     assertMoney(dto.dailyPrice, 'Daily price');
     assertMoney(dto.monthlyPrice, 'Monthly price');
+    return this.createSpot(req.user.id, dto);
+  }
+
+  private async createSpot(hostId: string, dto: CreateSpotDto) {
+    const duplicateCandidateIds = await this.findDuplicateCandidateIds({
+      hostId,
+      lat: dto.lat,
+      lng: dto.lng,
+      address: dto.address,
+      area: dto.area,
+    });
     return this.prisma.parkingSpot.create({
       data: {
-        hostId: req.user.id,
+        hostId,
         lat: dto.lat,
         lng: dto.lng,
-        address: dto.address,
-        area: dto.area,
+        address: dto.address.trim(),
+        area: dto.area.trim(),
         covered: dto.covered ?? false,
         widthM: dto.widthM,
         lengthM: dto.lengthM,
         vehicleSizes: dto.vehicleSizes ?? 'sedan,suv',
         accessType: dto.accessType ?? AccessType.GUARD,
-        accessNotes: dto.accessNotes,
-        photos: dto.photos ?? [],
+        accessNotes: dto.accessNotes?.trim(),
+        photos: this.cleanPhotos(dto),
+        entrancePhotoUrl: dto.entrancePhotoUrl?.trim(),
+        bayPhotoUrl: dto.bayPhotoUrl?.trim(),
+        ownershipProofUrl: dto.ownershipProofUrl?.trim(),
         autoApprove: dto.autoApprove ?? true,
         hourlyPrice: dto.hourlyPrice,
         dailyPrice: dto.dailyPrice,
         monthlyPrice: dto.monthlyPrice,
         verifiedStatus: VerifiedStatus.PENDING,
+        verificationNotes:
+          duplicateCandidateIds.length > 0
+            ? `Potential duplicate of ${duplicateCandidateIds.length} nearby listing(s).`
+            : null,
+        duplicateCandidateIds,
+        resubmittedAt: new Date(),
       },
     });
   }
@@ -364,28 +405,55 @@ export class SpotsController {
     assertMoney(dto.hourlyPrice, 'Hourly price');
     assertMoney(dto.dailyPrice, 'Daily price');
     assertMoney(dto.monthlyPrice, 'Monthly price');
+    if (dto.accessNotes !== undefined) assertRequiredText(dto.accessNotes, 'Access notes');
+    if (dto.entrancePhotoUrl !== undefined) assertRequiredText(dto.entrancePhotoUrl, 'Entrance photo');
+    if (dto.bayPhotoUrl !== undefined) assertRequiredText(dto.bayPhotoUrl, 'Parking bay photo');
+    if (dto.ownershipProofUrl !== undefined) assertRequiredText(dto.ownershipProofUrl, 'Ownership or permission proof');
+    const current = await this.prisma.parkingSpot.findFirst({ where: { id, hostId: req.user.id } });
+    if (!current) return { error: 'not found' };
+    const nextLat = dto.lat ?? current.lat;
+    const nextLng = dto.lng ?? current.lng;
+    const nextAddress = dto.address ?? current.address;
+    const nextArea = dto.area ?? current.area;
+    const duplicateCandidateIds = await this.findDuplicateCandidateIds({
+      hostId: req.user.id,
+      spotId: id,
+      lat: nextLat,
+      lng: nextLng,
+      address: nextAddress,
+      area: nextArea,
+    });
     const data: Prisma.ParkingSpotUpdateManyMutationInput = {
       lat: dto.lat,
       lng: dto.lng,
-      address: dto.address,
-      area: dto.area,
+      address: dto.address?.trim(),
+      area: dto.area?.trim(),
       covered: dto.covered,
       widthM: dto.widthM,
       lengthM: dto.lengthM,
       vehicleSizes: dto.vehicleSizes,
       accessType: dto.accessType,
-      accessNotes: dto.accessNotes,
-      photos: dto.photos,
+      accessNotes: dto.accessNotes?.trim(),
+      photos: dto.photos ? this.cleanPhotos(dto as CreateSpotDto) : undefined,
+      entrancePhotoUrl: dto.entrancePhotoUrl?.trim(),
+      bayPhotoUrl: dto.bayPhotoUrl?.trim(),
+      ownershipProofUrl: dto.ownershipProofUrl?.trim(),
       autoApprove: dto.autoApprove,
       hourlyPrice: dto.hourlyPrice,
       dailyPrice: dto.dailyPrice,
       monthlyPrice: dto.monthlyPrice,
       active: dto.active,
+      verifiedStatus: VerifiedStatus.PENDING,
+      rejectionReason: null,
+      verifiedAt: null,
+      resubmittedAt: new Date(),
+      duplicateCandidateIds,
+      verificationNotes:
+        duplicateCandidateIds.length > 0
+          ? `Potential duplicate of ${duplicateCandidateIds.length} nearby listing(s).`
+          : null,
     };
-    await this.prisma.parkingSpot.updateMany({
-      where: { id, hostId: req.user.id },
-      data,
-    });
+    await this.prisma.parkingSpot.update({ where: { id }, data });
     return this.prisma.parkingSpot.findUnique({ where: { id } });
   }
 
@@ -505,5 +573,49 @@ export class SpotsController {
     if (!availabilityCoversBooking(spot.availability, window)) return false;
     if (spot.blocks.some((block) => blockConflictsWithBooking(block, window))) return false;
     return !spot.bookings.some((booking) => bookingsConflict(booking, window));
+  }
+
+  private cleanPhotos(dto: Pick<CreateSpotDto, 'photos' | 'entrancePhotoUrl' | 'bayPhotoUrl'>) {
+    const values = [
+      ...(Array.isArray(dto.photos) ? dto.photos : []),
+      dto.entrancePhotoUrl,
+      dto.bayPhotoUrl,
+    ];
+    return [...new Set(values.map((photo) => photo?.trim()).filter((photo): photo is string => Boolean(photo)))];
+  }
+
+  private async findDuplicateCandidateIds(params: {
+    hostId: string;
+    spotId?: string;
+    lat: number;
+    lng: number;
+    address: string;
+    area: string;
+  }) {
+    const candidates = await this.prisma.parkingSpot.findMany({
+      where: {
+        active: true,
+        id: params.spotId ? { not: params.spotId } : undefined,
+        lat: { gte: params.lat - 0.001, lte: params.lat + 0.001 },
+        lng: { gte: params.lng - 0.001, lte: params.lng + 0.001 },
+      },
+      select: { id: true, hostId: true, lat: true, lng: true, address: true, area: true },
+      take: 25,
+    });
+    const addressKey = this.normalizedLocationText(params.address);
+    const areaKey = this.normalizedLocationText(params.area);
+    return candidates
+      .filter((candidate) => {
+        const nearby = haversineKm(params.lat, params.lng, candidate.lat, candidate.lng) <= 0.06;
+        const sameText =
+          this.normalizedLocationText(candidate.address) === addressKey &&
+          this.normalizedLocationText(candidate.area) === areaKey;
+        return nearby || sameText || candidate.hostId === params.hostId;
+      })
+      .map((candidate) => candidate.id);
+  }
+
+  private normalizedLocationText(value: string) {
+    return value.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 }

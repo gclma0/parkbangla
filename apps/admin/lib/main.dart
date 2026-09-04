@@ -268,14 +268,22 @@ class _DashboardState extends State<Dashboard> {
             trailing: Wrap(children: [
               TextButton(
                 onPressed: () async {
-                  await widget.api.patch('/admin/spots/${s['id']}/verify', {'status': 'VERIFIED'});
+                  await widget.api.patch('/admin/spots/${s['id']}/verify', {
+                    'status': 'VERIFIED',
+                    'checklist': ['entrance_photo', 'bay_photo', 'ownership_proof', 'coordinate_review'],
+                    'notes': 'Approved by admin review',
+                  });
                   _load();
                 },
                 child: const Text('Verify'),
               ),
               TextButton(
                 onPressed: () async {
-                  await widget.api.patch('/admin/spots/${s['id']}/verify', {'status': 'REJECTED'});
+                  await widget.api.patch('/admin/spots/${s['id']}/verify', {
+                    'status': 'REJECTED',
+                    'rejectionReason': 'Listing needs clearer proof, photos, or entrance location.',
+                    'checklist': ['admin_review'],
+                  });
                   _load();
                 },
                 child: const Text('Reject'),

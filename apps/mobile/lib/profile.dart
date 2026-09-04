@@ -680,6 +680,9 @@ class _ListSpotPageState extends State<ListSpotPage> {
   final lat = TextEditingController();
   final lng = TextEditingController();
   final photo = TextEditingController(text: 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=1200');
+  final entrancePhoto = TextEditingController(text: 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=1200');
+  final bayPhoto = TextEditingController(text: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=1200');
+  final ownershipProof = TextEditingController(text: 'demo-host-permission-proof');
   final accessNotes = TextEditingController(text: 'Tell the guard "ParkBangla - Sadia". Gate code: 1234');
   
   final hourly = TextEditingController();
@@ -714,6 +717,9 @@ class _ListSpotPageState extends State<ListSpotPage> {
     lat.dispose();
     lng.dispose();
     photo.dispose();
+    entrancePhoto.dispose();
+    bayPhoto.dispose();
+    ownershipProof.dispose();
     accessNotes.dispose();
     hourly.dispose();
     daily.dispose();
@@ -792,6 +798,15 @@ class _ListSpotPageState extends State<ListSpotPage> {
 
   Future<void> _submit() async {
     if (address.text.trim().isEmpty || area.text.trim().isEmpty) return;
+    if (accessNotes.text.trim().length < 3 ||
+        entrancePhoto.text.trim().length < 3 ||
+        bayPhoto.text.trim().length < 3 ||
+        ownershipProof.text.trim().length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Access notes, entrance photo, bay photo, and ownership proof are required.')),
+      );
+      return;
+    }
     final parsedLat = double.tryParse(lat.text);
     final parsedLng = double.tryParse(lng.text);
     if (parsedLat == null || parsedLng == null || parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) {
@@ -815,7 +830,10 @@ class _ListSpotPageState extends State<ListSpotPage> {
           'monthlyPrice': double.tryParse(monthly.text) ?? 9000.0,
           'accessType': accessType,
           'accessNotes': accessNotes.text.trim(),
-          'photos': [photo.text.trim()],
+          'photos': [photo.text.trim(), entrancePhoto.text.trim(), bayPhoto.text.trim()],
+          'entrancePhotoUrl': entrancePhoto.text.trim(),
+          'bayPhotoUrl': bayPhoto.text.trim(),
+          'ownershipProofUrl': ownershipProof.text.trim(),
           'autoApprove': autoApprove,
         }) as Map,
       );
@@ -924,6 +942,12 @@ class _ListSpotPageState extends State<ListSpotPage> {
           ),
           const SizedBox(height: 12),
           TextField(controller: photo, decoration: InputDecoration(labelText: i.t('Photo URL', 'ছবির ইউআরএল'))),
+          const SizedBox(height: 12),
+          TextField(controller: entrancePhoto, decoration: const InputDecoration(labelText: 'Entrance photo URL')),
+          const SizedBox(height: 12),
+          TextField(controller: bayPhoto, decoration: const InputDecoration(labelText: 'Parking bay photo URL')),
+          const SizedBox(height: 12),
+          TextField(controller: ownershipProof, decoration: const InputDecoration(labelText: 'Ownership/permission proof URL or note')),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             value: accessType,

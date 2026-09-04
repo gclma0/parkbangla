@@ -141,6 +141,8 @@ Manual QA:
 
 Goal: make listed spots trustworthy before renters rely on them.
 
+Status: completed for the current prototype trust workflow. Production KYC provider integration and richer admin review screens remain later operational work.
+
 Must do:
 - Add host KYC workflow states separate from simple ID verified boolean.
 - Add spot verification checklist for admin.
@@ -155,6 +157,31 @@ Acceptance:
 - Renters can see whether a spot is verified.
 - Duplicate or misleading listings are flagged.
 - Hosts can fix rejected listings and resubmit.
+
+Completed implementation:
+- Added host KYC status fields separate from the existing `idVerified` boolean.
+- Added host quality metric fields for acceptance rate, cancellation rate, and average response time.
+- Added spot proof fields for entrance photo, parking bay photo, and ownership/permission proof.
+- Added spot review fields for checklist items, admin notes, rejection reason, verified timestamp, resubmission timestamp, and duplicate candidates.
+- New host spot submissions require address, area, access notes, entrance photo, bay photo, ownership/permission proof, valid coordinates, and valid prices.
+- Spot updates/resubmissions reset verification back to pending and clear previous rejection/verified state.
+- Duplicate candidate detection flags nearby or matching-address listings for admin review.
+- Admin ID verification now updates the host KYC status.
+- Admin spot approval can store checklist items and notes; rejection requires a reason.
+- Renter spot detail now shows a trust notice for verified, pending, rejected, or unverified listings.
+- Backend tests cover required listing proof fields, duplicate candidate tagging, and required admin rejection reasons.
+
+Manual QA:
+- As a host, try submitting a spot without access notes. Expected: submission is rejected.
+- As a host, try submitting a spot without entrance photo, bay photo, or ownership proof. Expected: submission is rejected.
+- Submit a complete spot with exact map coordinates and all proof fields. Expected: spot is created with `PENDING` verification.
+- Submit another active spot at nearly the same coordinates or same address/area. Expected: the new spot stores duplicate candidate IDs for admin review.
+- Open the admin app as admin. Expected: the spot appears in the Spots tab with pending verification.
+- Tap Verify for the pending spot. Expected: status becomes `VERIFIED`, checklist/notes are stored, and renter detail shows the verified trust notice.
+- Tap Reject for another pending spot. Expected: status becomes `REJECTED` with a rejection reason.
+- Open the rejected spot as a renter. Expected: trust notice warns that verification was rejected.
+- As the host, update/resubmit a rejected spot. Expected: status returns to `PENDING`, previous rejection reason is cleared, and resubmission time updates.
+- Toggle a user's ID verification in admin. Expected: `idVerified` changes and KYC status becomes `VERIFIED` or `REJECTED`.
 
 ## Milestone 5: Renter Experience And Conversion
 

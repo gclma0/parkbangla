@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -8,7 +9,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { BookingStatus, VerifiedStatus } from '@prisma/client';
+import { BookingStatus, KycStatus, VerifiedStatus } from '@prisma/client';
 import { AuthGuard } from './auth.guard';
 import { PrismaService } from './prisma.service';
 import { commissionOn } from './booking-rules';
@@ -52,7 +53,19 @@ export class AdminController {
   spots(@Req() req: { user: { isAdmin: boolean } }) {
     this.assertAdmin(req.user);
     return this.prisma.parkingSpot.findMany({
-      include: { host: { select: { name: true, phone: true } } },
+      include: {
+        host: {
+          select: {
+            name: true,
+            phone: true,
+            idVerified: true,
+            kycStatus: true,
+            acceptanceRate: true,
+            cancellationRate: true,
+            responseMinutesAvg: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -61,22 +74,44 @@ export class AdminController {
   async verifyId(
     @Req() req: { user: { isAdmin: boolean } },
     @Param('id') id: string,
-    @Body() body: { verified: boolean },
+    @Body() body: { verified: boolean; rejectionReason?: string },
   ) {
     this.assertAdmin(req.user);
-    return this.prisma.user.update({ where: { id }, data: { idVerified: body.verified } });
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        idVerified: body.verified,
+        kycStatus: body.verified ? KycStatus.VERIFIED : KycStatus.REJECTED,
+        kycRejectionReason: body.verified ? null : body.rejectionReason?.trim() || 'Rejected by admin review.',
+      },
+    });
   }
 
   @Patch('spots/:id/verify')
   async verifySpot(
     @Req() req: { user: { isAdmin: boolean } },
     @Param('id') id: string,
-    @Body() body: { status: VerifiedStatus },
+    @Body() body: { status: VerifiedStatus; rejectionReason?: string; checklist?: string[]; notes?: string },
   ) {
     this.assertAdmin(req.user);
+    if (!Object.values(VerifiedStatus).includes(body.status)) {
+      throw new BadRequestException('Invalid verification status.');
+    }
+    if (body.status === VerifiedStatus.REJECTED && !body.rejectionReason?.trim()) {
+      throw new BadRequestException('Rejection reason is required.');
+    }
+    const checklist = Array.isArray(body.checklist)
+      ? body.checklist.map((item) => item.trim()).filter(Boolean)
+      : undefined;
     return this.prisma.parkingSpot.update({
       where: { id },
-      data: { verifiedStatus: body.status },
+      data: {
+        verifiedStatus: body.status,
+        verificationChecklist: checklist,
+        verificationNotes: body.notes?.trim(),
+        rejectionReason: body.status === VerifiedStatus.REJECTED ? body.rejectionReason?.trim() : null,
+        verifiedAt: body.status === VerifiedStatus.VERIFIED ? new Date() : null,
+      },
     });
   }
 
