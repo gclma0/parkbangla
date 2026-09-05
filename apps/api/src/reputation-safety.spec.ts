@@ -43,6 +43,23 @@ describe('reviews reputation and safety', () => {
     );
   });
 
+  it('marks identity verification pending when a user uploads an identity document', async () => {
+    const prisma = {
+      user: {
+        update: async (args: unknown) => args,
+      },
+    };
+    const controller = new UsersController(prisma as never);
+
+    const result = await controller.patch({ user: { id: 'user_1' } }, { nidDocUrl: '/uploads/nid-demo.jpg' });
+
+    assert.deepEqual((result as unknown as { data: unknown }).data, {
+      nidDocUrl: '/uploads/nid-demo.jpg',
+      kycStatus: 'PENDING',
+      kycRejectionReason: null,
+    });
+  });
+
   it('blocks booking-party interaction when either user blocked the other', async () => {
     const prisma = {
       booking: {

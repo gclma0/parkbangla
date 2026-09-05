@@ -505,11 +505,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: ChoiceChip(label: Center(child: Text(i.t('All', 'All'))), selected: covered == null, onSelected: (_) => setSheetState(() => setState(() => covered = null)))),
+                      Expanded(child: _segmentChip(i.t('All', 'All'), covered == null, () => setSheetState(() => setState(() => covered = null)))),
                       const SizedBox(width: 8),
-                      Expanded(child: ChoiceChip(label: Center(child: Text(i.covered)), selected: covered == true, onSelected: (_) => setSheetState(() => setState(() => covered = true)))),
+                      Expanded(child: _segmentChip(i.covered, covered == true, () => setSheetState(() => setState(() => covered = true)))),
                       const SizedBox(width: 8),
-                      Expanded(child: ChoiceChip(label: Center(child: Text(i.openAir)), selected: covered == false, onSelected: (_) => setSheetState(() => setState(() => covered = false)))),
+                      Expanded(child: _segmentChip(i.openAir, covered == false, () => setSheetState(() => setState(() => covered = false)))),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -555,11 +555,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: ChoiceChip(label: const Center(child: Text('Hourly')), selected: priceMode == 'hourly', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'hourly')))),
+                      Expanded(child: _segmentChip('Hourly', priceMode == 'hourly', () => setSheetState(() => setState(() => priceMode = 'hourly')))),
                       const SizedBox(width: 8),
-                      Expanded(child: ChoiceChip(label: const Center(child: Text('Daily')), selected: priceMode == 'daily', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'daily')))),
+                      Expanded(child: _segmentChip('Daily', priceMode == 'daily', () => setSheetState(() => setState(() => priceMode = 'daily')))),
                       const SizedBox(width: 8),
-                      Expanded(child: ChoiceChip(label: const Center(child: Text('Monthly')), selected: priceMode == 'monthly', onSelected: (_) => setSheetState(() => setState(() => priceMode = 'monthly')))),
+                      Expanded(child: _segmentChip('Monthly', priceMode == 'monthly', () => setSheetState(() => setState(() => priceMode = 'monthly')))),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -603,6 +603,24 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return ChoiceChip(
       label: Text(label),
       selected: selected,
+      selectedColor: Pb.yellow,
+      backgroundColor: Colors.white,
+      labelStyle: TextStyle(color: Pb.ink, fontWeight: selected ? FontWeight.w900 : FontWeight.w600),
+      side: BorderSide(color: selected ? Pb.yellowDeep : Pb.ink.withOpacity(0.12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: (_) => onSelected(),
+    );
+  }
+
+  Widget _segmentChip(String label, bool selected, VoidCallback onSelected) {
+    return ChoiceChip(
+      label: Center(child: Text(label, overflow: TextOverflow.ellipsis)),
+      selected: selected,
+      selectedColor: Pb.yellow,
+      backgroundColor: Colors.white,
+      labelStyle: TextStyle(color: Pb.ink, fontWeight: selected ? FontWeight.w900 : FontWeight.w700),
+      side: BorderSide(color: selected ? Pb.yellowDeep : Pb.ink.withOpacity(0.12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (_) => onSelected(),
     );
   }

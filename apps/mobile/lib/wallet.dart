@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'i18n.dart';
 import 'session.dart';
 import 'theme.dart';
-import 'widgets.dart';
 
 class WalletPage extends StatefulWidget {
   const WalletPage({super.key});
+
   @override
   State<WalletPage> createState() => _WalletPageState();
 }
 
 class _WalletPageState extends State<WalletPage> {
-  Map<String, dynamic>? w;
+  final amount = TextEditingController(text: '2000');
+  final destination = TextEditingController();
+  Map<String, dynamic>? wallet;
   String method = 'bKash';
+  bool loading = true;
+  bool busy = false;
 
   @override
   void initState() {
@@ -20,256 +24,276 @@ class _WalletPageState extends State<WalletPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    amount.dispose();
+    destination.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    final data = await session.api.get('/wallet');
-    setState(() => w = Map<String, dynamic>.from(data as Map));
+    try {
+      final data = await session.api.get('/wallet');
+      if (mounted) setState(() => wallet = Map<String, dynamic>.from(data as Map));
+    } catch (e) {
+      _snack('Wallet failed to load: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _topUp() async {
+    final value = double.tryParse(amount.text.trim());
+    if (value == null || value <= 0) {
+      _snack('Enter a valid amount.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await session.api.post('/wallet/topup', {'amount': value, 'method': method});
+      await session.refreshMe();
+      await _load();
+      _snack('Top up successful.');
+    } catch (e) {
+      _snack('Top up failed: $e');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _withdraw() async {
+    final value = double.tryParse(amount.text.trim());
+    final dest = destination.text.trim().isEmpty ? method : destination.text.trim();
+    if (value == null || value <= 0) {
+      _snack('Enter a valid amount.');
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await session.api.post('/wallet/withdraw', {'amount': value, 'destination': dest});
+      await session.refreshMe();
+      await _load();
+      _snack('Withdraw request completed.');
+    } catch (e) {
+      _snack('Withdraw failed: $e');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
-    final ledger = (w?['ledger'] as List?) ?? [];
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width > 768;
-
-    Widget balanceCard = Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Pb.yellow,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Pb.ink.withOpacity(0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          )
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                i.t('Total Balance', 'মোট ব্যালেন্স'),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Pb.ink),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '৳ ${(w?['balance'] as num?)?.toStringAsFixed(0) ?? '—'}',
-                style: const TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: Pb.ink),
-              ),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.account_balance_wallet, size: 32, color: Pb.ink),
-          ),
-        ],
-      ),
+    final ledger = List<Map<String, dynamic>>.from(
+      (wallet?['ledger'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)),
     );
+    final balance = (wallet?['balance'] as num?)?.toDouble() ?? (session.user?['walletBalance'] as num?)?.toDouble() ?? 0;
 
-    Widget actionsCard = Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Pb.ink.withOpacity(0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            i.t('Top up & Payment Methods', 'টপ আপ ও পেমেন্ট মাধ্যম'),
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Pb.ink),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: ['bKash', 'Nagad', 'Rocket', 'card'].map((m) {
-              final on = method == m;
-              return ChoiceChip(
-                selected: on,
-                label: Text(m, style: TextStyle(fontWeight: on ? FontWeight.w800 : FontWeight.normal, fontSize: 13)),
-                selectedColor: Pb.yellow,
-                backgroundColor: Pb.cream,
-                labelStyle: const TextStyle(color: Pb.ink),
-                onSelected: (_) => setState(() => method = m),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                side: BorderSide(color: on ? Pb.yellowDeep : Pb.ink.withOpacity(0.06)),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 18),
-          YellowCta(
-            label: i.t('Top up ৳2,000', '২,০০০ টাকা যোগ করুন'),
-            onPressed: () async {
-              await session.api.post('/wallet/topup', {'amount': 2000, 'method': method});
-              await session.refreshMe();
-              _load();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(i.t('Top up of ৳2,000 successful!', '২,০০০ টাকা টপ আপ সফল হয়েছে!'))),
-                );
-              }
-            },
-          ),
-          if (session.isHost) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  await session.api.post('/wallet/withdraw', {'amount': 500, 'destination': method});
-                  await session.refreshMe();
-                  _load();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(i.t('Withdraw of ৳500 successful!', '৫০০ টাকা প্রত্যাহার সফল হয়েছে!'))),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              icon: const Icon(Icons.outbox, size: 16),
-              label: Text(i.t('Withdraw ৳500 to MFS', '৫০০ টাকা উত্তোলন করুন')),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-
-    Widget ledgerCard = Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Pb.ink.withOpacity(0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            i.t('Recent Activity', 'সাম্প্রতিক লেনদেন'),
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Pb.ink),
-          ),
-          const SizedBox(height: 12),
-          if (ledger.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              alignment: Alignment.center,
-              child: Text(
-                i.t('No transactions yet.', 'এখনো কোনো লেনদেন হয়নি।'),
-                style: const TextStyle(color: Pb.muted, fontSize: 12, fontStyle: FontStyle.italic),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: ledger.take(20).length,
-              separatorBuilder: (_, __) => Divider(color: Pb.ink.withOpacity(0.05), height: 20),
-              itemBuilder: (context, idx) {
-                final m = Map<String, dynamic>.from(ledger[idx] as Map);
-                final amount = m['amount'] as num? ?? 0;
-                final isCredit = amount > 0;
-                return Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isCredit ? const Color(0xFFE8F5E9) : const Color(0xFFECEFF1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isCredit ? Icons.arrow_downward : Icons.arrow_upward,
-                        color: isCredit ? Colors.green[800] : Pb.muted,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        m['reason']?.toString() ?? '',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Pb.ink),
-                      ),
-                    ),
-                    Text(
-                      '${isCredit ? '+' : ''}৳${amount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                        color: isCredit ? Colors.green[800] : Pb.ink,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-        ],
-      ),
-    );
+    if (loading) return const Center(child: CircularProgressIndicator(color: Pb.yellow));
 
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 800),
+        constraints: const BoxConstraints(maxWidth: 820),
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
           children: [
-            Text(
-              i.wallet,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Pb.ink),
+            Row(
+              children: [
+                Text(i.wallet, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Pb.ink)),
+                const Spacer(),
+                IconButton(onPressed: _load, icon: const Icon(Icons.refresh), tooltip: 'Refresh'),
+              ],
             ),
-            const SizedBox(height: 20),
-            if (isDesktop)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 11,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        balanceCard,
-                        const SizedBox(height: 20),
-                        actionsCard,
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    flex: 12,
-                    child: ledgerCard,
-                  ),
-                ],
-              )
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  balanceCard,
-                  const SizedBox(height: 16),
-                  actionsCard,
-                  const SizedBox(height: 16),
-                  ledgerCard,
-                ],
-              ),
+            const SizedBox(height: 16),
+            _balanceCard(balance),
+            const SizedBox(height: 16),
+            _actionPanel(),
+            const SizedBox(height: 16),
+            _ledger(ledger),
           ],
         ),
       ),
     );
+  }
+
+  Widget _balanceCard(double balance) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Pb.ink,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 14, offset: const Offset(0, 8))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Pb.yellow, borderRadius: BorderRadius.circular(14)),
+            child: const Icon(Icons.account_balance_wallet, color: Pb.ink),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Available balance', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('Tk ${balance.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionPanel() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Pb.ink.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Add or withdraw money', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: amount,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Amount',
+              prefixText: 'Tk ',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ['bKash', 'Nagad', 'Rocket', 'Card', 'Cash'].map((m) {
+              final selected = method == m;
+              return ChoiceChip(
+                label: Text(m),
+                selected: selected,
+                selectedColor: Pb.yellow,
+                backgroundColor: Pb.cream,
+                labelStyle: TextStyle(color: Pb.ink, fontWeight: selected ? FontWeight.w900 : FontWeight.w600),
+                side: BorderSide(color: selected ? Pb.yellowDeep : Pb.ink.withOpacity(0.12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (_) => setState(() => method = m),
+              );
+            }).toList(),
+          ),
+          if (session.isHost) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: destination,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: 'Withdraw destination',
+                hintText: 'MFS number or bank note',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: busy ? null : _topUp,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Top up'),
+                  style: FilledButton.styleFrom(backgroundColor: Pb.yellow, foregroundColor: Pb.ink, minimumSize: const Size.fromHeight(48)),
+                ),
+              ),
+              if (session.isHost) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: busy ? null : _withdraw,
+                    icon: const Icon(Icons.outbox),
+                    label: const Text('Withdraw'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Demo wallet only. Real payment provider settlement will be integrated in the final stage.',
+            style: TextStyle(color: Pb.muted, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ledger(List<Map<String, dynamic>> ledger) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Pb.ink.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Recent activity', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Pb.ink)),
+          const SizedBox(height: 10),
+          if (ledger.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 26),
+              child: Center(child: Text('No wallet activity yet.', style: TextStyle(color: Pb.muted))),
+            )
+          else
+            ...ledger.take(30).map(_ledgerRow),
+        ],
+      ),
+    );
+  }
+
+  Widget _ledgerRow(Map<String, dynamic> row) {
+    final amountValue = (row['amount'] as num?)?.toDouble() ?? 0;
+    final credit = amountValue >= 0;
+    final createdAt = row['createdAt']?.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Pb.ink.withOpacity(0.06)))),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: credit ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+            child: Icon(credit ? Icons.arrow_downward : Icons.arrow_upward, size: 18, color: credit ? Colors.green[800] : Colors.red[700]),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(row['reason']?.toString() ?? 'Wallet activity', style: const TextStyle(fontWeight: FontWeight.w800, color: Pb.ink)),
+                if (createdAt != null) Text(createdAt.split('T').first, style: const TextStyle(color: Pb.muted, fontSize: 12)),
+              ],
+            ),
+          ),
+          Text(
+            '${credit ? '+' : '-'}Tk ${amountValue.abs().toStringAsFixed(0)}',
+            style: TextStyle(fontWeight: FontWeight.w900, color: credit ? Colors.green[800] : Colors.red[700]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 }

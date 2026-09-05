@@ -311,6 +311,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildVerificationCard(I18n i) {
     final isVerified = session.user?['idVerified'] == true;
+    final kycStatus = session.user?['kycStatus']?.toString() ?? 'NOT_SUBMITTED';
+    final hasUploadedDoc = session.user?['nidDocUrl'] != null || session.user?['dlDocUrl'] != null;
+    final isPending = !isVerified && (kycStatus == 'PENDING' || hasUploadedDoc);
+    final isRejected = !isVerified && kycStatus == 'REJECTED';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -326,22 +330,34 @@ class _ProfilePageState extends State<ProfilePage> {
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Pb.ink),
           ),
           const SizedBox(height: 12),
-          if (isVerified) ...[
+          if (isVerified || isPending || isRejected) ...[
             Row(
               children: [
-                Icon(Icons.verified, color: Colors.green[700], size: 22),
+                Icon(
+                  isVerified ? Icons.verified : (isRejected ? Icons.error_outline : Icons.hourglass_top),
+                  color: isVerified ? Colors.green[700] : (isRejected ? Colors.red[700] : Pb.yellowDeep),
+                  size: 22,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        i.t('Status: Verified', 'à¦…à¦¬à¦¸à§à¦¥à¦¾: à¦¯à¦¾à¦šà¦¾à¦‡à¦•à§ƒà¦¤'),
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.green[800]),
+                        isVerified ? 'Status: Verified' : (isRejected ? 'Status: Rejected' : 'Status: Pending review'),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: isVerified ? Colors.green[800] : (isRejected ? Colors.red[800] : Pb.ink),
+                        ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        i.t('Identity has been successfully verified.', 'à¦ªà¦°à¦¿à¦šà§Ÿ à¦¸à¦«à¦²à¦­à¦¾à¦¬à§‡ à¦¯à¦¾à¦šà¦¾à¦‡ à¦•à¦°à¦¾ à¦¹à§Ÿà§‡à¦›à§‡à¥¤'),
+                        isVerified
+                            ? 'Identity has been successfully verified.'
+                            : (isRejected
+                                ? (session.user?['kycRejectionReason']?.toString() ?? 'Identity verification was rejected.')
+                                : 'Document uploaded. Admin will review it.'),
                         style: const TextStyle(color: Pb.muted, fontSize: 11),
                       ),
                     ],
@@ -357,13 +373,7 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () async {
-                await session.api.patch('/me', {'nidDocUrl': '/uploads/nid-demo.jpg'});
-                await session.refreshMe();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(i.t('NID marked uploaded', 'à¦à¦¨à¦†à¦‡à¦¡à¦¿ à¦†à¦ªà¦²à§‹à¦¡ à¦¸à¦«à¦² à¦¹à§Ÿà§‡à¦›à§‡'))),
-                  );
-                }
+                await _verifyIdentity();
               },
               style: FilledButton.styleFrom(
                 backgroundColor: Pb.yellow,
@@ -519,6 +529,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: plate,
+                    textInputAction: TextInputAction.done,
+                    textCapitalization: TextCapitalization.characters,
+                    onSubmitted: (_) => _addVehicle(),
                     decoration: InputDecoration(
                       hintText: 'DHAKA-GA-00-0000',
                       filled: true,
@@ -535,6 +548,18 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _addVehicle,
+                    icon: const Icon(Icons.add),
+                    label: Text(i.t('Add Vehicle', 'Add Vehicle')),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Pb.yellow,
+                      foregroundColor: Pb.ink,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -544,25 +569,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
-                        onPressed: () async {
-                          if (plate.text.trim().isEmpty) return;
-                          try {
-                            await session.api.post('/me/vehicles', {
-                              'plate': plate.text.trim(),
-                              'type': 'car',
-                              'sizeClass': 'sedan',
-                            });
-                            plate.clear();
-                            await session.refreshMe();
-                            setState(() {
-                              _showAddVehicleForm = false;
-                            });
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                            }
-                          }
-                        },
+                        onPressed: _addVehicle,
                         style: FilledButton.styleFrom(
                           backgroundColor: Pb.yellow,
                           foregroundColor: Pb.ink,
@@ -577,6 +584,42 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
     );
+  }
+
+  Future<void> _verifyIdentity() async {
+    try {
+      await session.api.patch('/me', {'nidDocUrl': '/uploads/nid-demo.jpg'});
+      await session.refreshMe();
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Identity document uploaded for review.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _addVehicle() async {
+    if (plate.text.trim().isEmpty) return;
+    try {
+      await session.api.post('/me/vehicles', {
+        'plate': plate.text.trim().toUpperCase(),
+        'type': 'car',
+        'sizeClass': 'sedan',
+      });
+      plate.clear();
+      await session.refreshMe();
+      if (mounted) {
+        setState(() {
+          _showAddVehicleForm = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehicle added.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   Widget _buildAccountActions(I18n i) {

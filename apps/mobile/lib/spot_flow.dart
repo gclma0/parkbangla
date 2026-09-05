@@ -846,7 +846,10 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 
   Future<void> _blockOtherUser() async {
-    final otherId = session.isHost ? b?['renterId'] : b?['spot']?['hostId'];
+    final spot = b?['spot'] is Map ? Map<String, dynamic>.from(b!['spot'] as Map) : null;
+    final renterId = b == null ? null : b!['renterId'];
+    final hostId = spot == null ? null : spot['hostId'];
+    final otherId = session.isHost ? renterId : hostId;
     if (otherId == null) return;
     final reason = TextEditingController();
     final confirm = await showDialog<bool>(
@@ -1110,6 +1113,13 @@ class _SosPageState extends State<SosPage> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support ticket created.')));
   }
 
+  Future<void> _call(String number) async {
+    final uri = Uri(scheme: 'tel', path: number);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not open dialer for $number')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
@@ -1126,8 +1136,19 @@ class _SosPageState extends State<SosPage> {
             Text(i.t('Emergency', 'জরুরি'), style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             if (contacts.isEmpty)
-              const Text('Bangladesh emergency service 999\nParkBangla safety: flag the booking in-app.',
-                  style: TextStyle(color: Colors.white, height: 1.5, fontSize: 16), textAlign: TextAlign.center)
+              Column(
+                children: [
+                  const Text('Bangladesh emergency service 999\nParkBangla safety: flag the booking in-app.',
+                      style: TextStyle(color: Colors.white, height: 1.5, fontSize: 16), textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => _call('999'),
+                    icon: const Icon(Icons.call),
+                    label: const Text('Call 999'),
+                    style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFFB71C1C)),
+                  ),
+                ],
+              )
             else
               ...contacts.map(
                 (contact) => ListTile(
@@ -1136,6 +1157,12 @@ class _SosPageState extends State<SosPage> {
                   leading: const Icon(Icons.local_phone),
                   title: Text('${contact['label']}'),
                   subtitle: Text('${contact['value']}', style: const TextStyle(color: Colors.white70)),
+                  trailing: FilledButton.icon(
+                    onPressed: () => _call('${contact['value']}'),
+                    icon: const Icon(Icons.call, size: 16),
+                    label: const Text('Call'),
+                    style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFFB71C1C)),
+                  ),
                 ),
               ),
             const Spacer(),
@@ -1233,6 +1260,10 @@ class _InstantCheckoutPageState extends State<InstantCheckoutPage> {
                   child: ChoiceChip(
                     label: Center(child: Text(i.t('Hourly', 'ঘণ্টা'))),
                     selected: isHourly,
+                    selectedColor: Pb.yellow,
+                    backgroundColor: Colors.white,
+                    labelStyle: const TextStyle(color: Pb.ink, fontWeight: FontWeight.w800),
+                    side: BorderSide(color: isHourly ? Pb.yellowDeep : Pb.ink.withOpacity(0.12)),
                     onSelected: (_) => setState(() => isHourly = true),
                   ),
                 ),
@@ -1241,6 +1272,10 @@ class _InstantCheckoutPageState extends State<InstantCheckoutPage> {
                   child: ChoiceChip(
                     label: Center(child: Text(i.t('Daily', 'দিন'))),
                     selected: !isHourly,
+                    selectedColor: Pb.yellow,
+                    backgroundColor: Colors.white,
+                    labelStyle: const TextStyle(color: Pb.ink, fontWeight: FontWeight.w800),
+                    side: BorderSide(color: !isHourly ? Pb.yellowDeep : Pb.ink.withOpacity(0.12)),
                     onSelected: (_) => setState(() => isHourly = false),
                   ),
                 ),

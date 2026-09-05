@@ -10,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { KycStatus } from '@prisma/client';
 import { IsOptional, IsString } from 'class-validator';
 import { AuthGuard } from './auth.guard';
 import { FcmService } from './fcm.service';
@@ -66,7 +67,14 @@ export class UsersController {
 
   @Patch('me')
   patch(@Req() req: { user: { id: string } }, @Body() dto: PatchMeDto) {
-    return this.prisma.user.update({ where: { id: req.user.id }, data: dto });
+    const identityUploaded = Boolean(dto.nidDocUrl?.trim() || dto.dlDocUrl?.trim());
+    return this.prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        ...dto,
+        ...(identityUploaded ? { kycStatus: KycStatus.PENDING, kycRejectionReason: null } : {}),
+      },
+    });
   }
 
   @Get('me/notification-preferences')
