@@ -86,7 +86,19 @@ class _ShellState extends State<Shell> {
                 selectedIcon: const Icon(Icons.local_fire_department),
                 label: session.isHost ? i.host : i.discover,
               ),
-              NavigationDestination(icon: const Icon(Icons.style_outlined), selectedIcon: const Icon(Icons.style), label: i.bookings),
+              NavigationDestination(
+                icon: Badge(
+                  isLabelVisible: session.unreadMessagesCount > 0,
+                  label: Text('${session.unreadMessagesCount}'),
+                  child: const Icon(Icons.style_outlined),
+                ),
+                selectedIcon: Badge(
+                  isLabelVisible: session.unreadMessagesCount > 0,
+                  label: Text('${session.unreadMessagesCount}'),
+                  child: const Icon(Icons.style),
+                ),
+                label: i.bookings,
+              ),
               NavigationDestination(
                 icon: const Icon(Icons.account_balance_wallet_outlined),
                 selectedIcon: const Icon(Icons.account_balance_wallet),
@@ -125,6 +137,7 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   List items = [];
   bool loading = true;
+  Map<String, dynamic> prefs = {};
 
   @override
   void initState() {
@@ -135,7 +148,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _load() async {
     try {
       final data = await session.api.get('/notifications');
+      final rawPrefs = await session.api.get('/me/notification-preferences');
       setState(() => items = data as List);
+      if (rawPrefs is Map) prefs = Map<String, dynamic>.from(rawPrefs);
     } catch (_) {}
     if (mounted) setState(() => loading = false);
   }
@@ -149,6 +164,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
         title: Text(i.t('Notifications', 'বিজ্ঞপ্তি')),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _preferences,
+            icon: const Icon(Icons.tune),
+            tooltip: i.t('Notification preferences', 'বিজ্ঞপ্তির সেটিংস'),
+          ),
+        ],
       ),
       body: loading
           ? const Center(child: CircularProgressIndicator(color: Pb.yellow))
@@ -236,10 +258,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               // Deep-link to booking
                               final bookingId = n['bookingId'];
                               if (bookingId != null && context.mounted) {
+                                final route = n['route']?.toString();
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => CheckInPage(bookingId: bookingId.toString()),
+                                    builder: (_) => route?.endsWith('/chat') == true
+                                        ? ChatPage(bookingId: bookingId.toString())
+                                        : CheckInPage(bookingId: bookingId.toString()),
                                   ),
                                 );
                               }
@@ -251,5 +276,70 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   ),
                 ),
     );
+  }
+
+  Future<void> _preferences() async {
+    bool pushEnabled = prefs['pushEnabled'] != false;
+    bool inAppEnabled = prefs['inAppEnabled'] != false;
+    final disabled = Set<String>.from((prefs['disabledTypes'] as List?)?.map((v) => v.toString()) ?? const []);
+    const types = [
+      'BOOKING_REQUESTED',
+      'BOOKING_ACCEPTED',
+      'BOOKING_REJECTED',
+      'BOOKING_CANCELLED',
+      'MESSAGE_RECEIVED',
+      'UPCOMING_BOOKING_REMINDER',
+      'CHECKOUT_REMINDER',
+      'PENDING_APPROVAL_REMINDER',
+    ];
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Notification preferences'),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      value: pushEnabled,
+                      onChanged: (v) => setDialogState(() => pushEnabled = v),
+                      title: const Text('Push notifications'),
+                    ),
+                    SwitchListTile(
+                      value: inAppEnabled,
+                      onChanged: (v) => setDialogState(() => inAppEnabled = v),
+                      title: const Text('In-app notifications'),
+                    ),
+                    const Divider(),
+                    ...types.map(
+                      (type) => CheckboxListTile(
+                        value: !disabled.contains(type),
+                        onChanged: (v) => setDialogState(() => v == true ? disabled.remove(type) : disabled.add(type)),
+                        title: Text(type.replaceAll('_', ' ')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+            ],
+          ),
+        );
+      },
+    );
+    if (saved != true) return;
+    await session.api.patch('/me/notification-preferences', {
+      'pushEnabled': pushEnabled,
+      'inAppEnabled': inAppEnabled,
+      'disabledTypes': disabled.toList(),
+    });
+    await _load();
   }
 }

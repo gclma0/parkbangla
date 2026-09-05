@@ -87,6 +87,8 @@ class FcmHandler {
     final title = message.notification?.title ?? 'Notification';
     final body = message.notification?.body ?? '';
     final bookingId = message.data['bookingId'];
+    final route = message.data['route'];
+    session.fetchUnreadCount();
 
     final context = navigatorKey.currentContext;
     if (context != null) {
@@ -104,11 +106,7 @@ class FcmHandler {
               TextButton(
                 onPressed: () {
                   Navigator.pop(ctx);
-                  navigatorKey.currentState?.push(
-                    MaterialPageRoute(
-                      builder: (_) => CheckInPage(bookingId: bookingId.toString()),
-                    ),
-                  );
+                  _openRoute(bookingId.toString(), route?.toString());
                 },
                 child: const Text('View'),
               ),
@@ -120,12 +118,18 @@ class FcmHandler {
 
   static void _handleNotificationTap(RemoteMessage message) {
     final bookingId = message.data['bookingId'];
+    final route = message.data['route'];
+    session.fetchUnreadCount();
     if (bookingId != null) {
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (_) => CheckInPage(bookingId: bookingId.toString()),
-        ),
-      );
+      _openRoute(bookingId.toString(), route?.toString());
     }
+  }
+
+  static void _openRoute(String bookingId, String? route) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => route?.endsWith('/chat') == true ? ChatPage(bookingId: bookingId) : CheckInPage(bookingId: bookingId),
+      ),
+    );
   }
 }

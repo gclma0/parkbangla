@@ -118,6 +118,7 @@ class Session extends ChangeNotifier {
   }
 
   int unreadNotificationsCount = 0;
+  int unreadMessagesCount = 0;
 
   Future<void> fetchUnreadCount() async {
     if (api.token == null) return;
@@ -125,8 +126,12 @@ class Session extends ChangeNotifier {
       final data = await api.get('/notifications');
       if (data is List) {
         unreadNotificationsCount = data.where((n) => Map<String, dynamic>.from(n as Map)['read'] != true).length;
-        notifyListeners();
       }
+      final messages = await api.get('/messages/unread-count');
+      if (messages is Map) {
+        unreadMessagesCount = (Map<String, dynamic>.from(messages)['count'] as num?)?.toInt() ?? 0;
+      }
+      notifyListeners();
     } catch (_) {}
   }
 

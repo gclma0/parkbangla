@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getMessaging, Message } from 'firebase-admin/messaging';
@@ -39,23 +40,32 @@ export class FcmService {
     body: string;
     bookingId?: string;
     type?: string;
+    route?: string;
+    data?: Record<string, string>;
   }) {
-    // 1. Persist notification in database first
-    const notification = await this.prisma.notification.create({
-      data: {
-        userId: params.userId,
-        title: params.title,
-        body: params.body,
-        bookingId: params.bookingId,
-        type: params.type,
-      },
-    });
-
-    // 2. Fetch the user's fcmToken
     const user = await this.prisma.user.findUnique({
       where: { id: params.userId },
-      select: { fcmToken: true },
+      select: { fcmToken: true, notificationPrefs: true },
     });
+    const route = params.route ?? (params.bookingId ? `/bookings/${params.bookingId}` : undefined);
+    const notification = this.allowsInApp(user?.notificationPrefs)
+      ? await this.prisma.notification.create({
+          data: {
+            userId: params.userId,
+            title: params.title,
+            body: params.body,
+            bookingId: params.bookingId,
+            type: params.type,
+            route,
+            data: params.data === undefined ? undefined : (params.data as Prisma.InputJsonValue),
+          },
+        })
+      : null;
+
+    if (!this.allowsPush(user?.notificationPrefs, params.type)) {
+      this.logger.log(`Push disabled for user ${params.userId} type ${params.type ?? 'GENERAL'}.`);
+      return notification;
+    }
 
     if (!user?.fcmToken) {
       this.logger.log(`No FCM token found for user ${params.userId}. Persisted only.`);
@@ -65,13 +75,17 @@ export class FcmService {
     // 3. Deliver FCM
     if (this.initialized) {
       try {
+        const data: Record<string, string> = { ...(params.data ?? {}) };
+        if (params.bookingId) data.bookingId = params.bookingId;
+        if (params.type) data.type = params.type;
+        if (route) data.route = route;
         const payload: Message = {
           token: user.fcmToken,
           notification: {
             title: params.title,
             body: params.body,
           },
-          data: params.bookingId ? { bookingId: params.bookingId } : {},
+          data,
           android: {
             notification: {
               clickAction: 'FLUTTER_NOTIFICATION_CLICK',
@@ -88,5 +102,18 @@ export class FcmService {
     }
 
     return notification;
+  }
+
+  private allowsPush(rawPrefs: unknown, type?: string) {
+    const prefs = rawPrefs as Record<string, unknown> | null;
+    if (prefs?.pushEnabled === false) return false;
+    if (!type) return true;
+    const disabled = prefs?.disabledTypes;
+    return !Array.isArray(disabled) || !disabled.includes(type);
+  }
+
+  private allowsInApp(rawPrefs: unknown) {
+    const prefs = rawPrefs as Record<string, unknown> | null;
+    return prefs?.inAppEnabled !== false;
   }
 }

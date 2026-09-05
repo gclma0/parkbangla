@@ -37,6 +37,19 @@ export class BookingsService {
     if (!vehicle) throw new BadRequestException('Vehicle not found');
   }
 
+  private async assertNotBlocked(renterId: string, hostId: string) {
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: renterId, blockedId: hostId },
+          { blockerId: hostId, blockedId: renterId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (block) throw new BadRequestException('This user interaction is blocked.');
+  }
+
   private assertAmount(amount: number) {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Invalid booking amount');
@@ -148,6 +161,7 @@ export class BookingsService {
     });
     if (!spot || !spot.active) throw new BadRequestException('Spot unavailable');
     if (spot.hostId === params.renterId) throw new BadRequestException('You cannot book your own spot');
+    await this.assertNotBlocked(params.renterId, spot.hostId);
 
     const requestedWindow = {
       startDate: params.startDate,
@@ -297,6 +311,7 @@ export class BookingsService {
     });
     if (!spot || !spot.active) throw new BadRequestException('Spot unavailable');
     if (spot.hostId === params.renterId) throw new BadRequestException('You cannot book your own spot');
+    await this.assertNotBlocked(params.renterId, spot.hostId);
 
     const requestedWindow = {
       startDate: params.startDate,
@@ -513,6 +528,7 @@ export class BookingsService {
         // notification is created & sent by FcmService
       }
     });
+    await this.refreshSafetyFlags(booking.renterId, booking.spot.hostId);
 
     if (booking.renterId !== userId) {
       try {
@@ -529,6 +545,28 @@ export class BookingsService {
     }
 
     return { ok: true, refund };
+  }
+
+  private async refreshSafetyFlags(renterId: string, hostId: string) {
+    const [renterCancelled, hostCancelled, completedByRenter] = await Promise.all([
+      this.prisma.booking.count({ where: { renterId, status: BookingStatus.CANCELLED } }),
+      this.prisma.booking.count({ where: { spot: { hostId }, status: BookingStatus.CANCELLED } }),
+      this.prisma.booking.count({ where: { renterId, status: BookingStatus.COMPLETED } }),
+    ]);
+    if (renterCancelled >= 3 && renterCancelled > completedByRenter) {
+      const user = await this.prisma.user.findUnique({ where: { id: renterId }, select: { riskFlags: true } });
+      await this.prisma.user.update({
+        where: { id: renterId },
+        data: { riskFlags: [...new Set([...(user?.riskFlags ?? []), 'CANCELLATION_ABUSE_REVIEW'])] },
+      });
+    }
+    if (hostCancelled >= 3) {
+      const user = await this.prisma.user.findUnique({ where: { id: hostId }, select: { riskFlags: true } });
+      await this.prisma.user.update({
+        where: { id: hostId },
+        data: { riskFlags: [...new Set([...(user?.riskFlags ?? []), 'HOST_CANCELLATION_REVIEW'])] },
+      });
+    }
   }
 
   async checkInOrOut(
@@ -574,6 +612,9 @@ export class BookingsService {
           userId: booking.spot.hostId,
           title: kind === 'out' ? 'Renter checked out' : 'Renter checked in',
           body: `Booking ${booking.id.slice(0, 8)}`,
+          bookingId,
+          type: kind === 'out' ? 'CHECKOUT_COMPLETED' : 'CHECKIN_COMPLETED',
+          route: `/bookings/${bookingId}`,
         },
       });
 

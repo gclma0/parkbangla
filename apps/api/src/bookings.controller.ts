@@ -13,6 +13,7 @@ import { BookingStatus } from '@prisma/client';
 import { IsArray, IsDateString, IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 import { AuthGuard } from './auth.guard';
 import { BookingsService } from './bookings.service';
+import { FcmService } from './fcm.service';
 import { PrismaService } from './prisma.service';
 
 class CreatePassDto {
@@ -61,6 +62,18 @@ class ReviewDto {
   @IsNumber()
   rating!: number;
   @IsOptional()
+  @IsNumber()
+  spotRating?: number;
+  @IsOptional()
+  @IsNumber()
+  hostRating?: number;
+  @IsOptional()
+  @IsNumber()
+  renterRating?: number;
+  @IsOptional()
+  @IsArray()
+  tags?: string[];
+  @IsOptional()
   @IsString()
   comment?: string;
 }
@@ -71,6 +84,7 @@ export class BookingsController {
   constructor(
     private bookings: BookingsService,
     private prisma: PrismaService,
+    private fcm?: FcmService,
   ) {}
 
   @Post('bookings/commuter-pass')
@@ -182,12 +196,20 @@ export class BookingsController {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       throw new BadRequestException('Rating must be between 1 and 5.');
     }
+    const spotRating = this.optionalRating(dto.spotRating, 'Spot rating');
+    const hostRating = this.optionalRating(dto.hostRating, 'Host rating');
+    const renterRating = this.optionalRating(dto.renterRating, 'Renter rating');
+    const tags = Array.isArray(dto.tags) ? dto.tags.map((tag) => tag.trim()).filter(Boolean).slice(0, 8) : [];
     const review = await this.prisma.review.create({
       data: {
         bookingId: id,
         fromUserId: req.user.id,
         toUserId: dto.toUserId,
         rating,
+        spotRating,
+        hostRating,
+        renterRating,
+        tags,
         comment: dto.comment,
       },
     });
@@ -200,6 +222,17 @@ export class BookingsController {
       where: { id: dto.toUserId },
       data: { ratingAvg: agg._avg.rating ?? 0, ratingCount: agg._count },
     });
+    if (spotRating != null) {
+      const spotAgg = await this.prisma.review.aggregate({
+        where: { booking: { spotId: booking.spotId }, spotRating: { not: null } },
+        _avg: { spotRating: true },
+        _count: true,
+      });
+      await this.prisma.parkingSpot.update({
+        where: { id: booking.spotId },
+        data: { ratingAvg: spotAgg._avg.spotRating ?? 0, ratingCount: spotAgg._count },
+      });
+    }
     return review;
   }
 
@@ -220,17 +253,32 @@ export class BookingsController {
   async sendMessage(
     @Req() req: { user: { id: string } },
     @Param('id') id: string,
-    @Body() body: { content: string },
+    @Body() body: { content: string; attachmentUrl?: string; attachmentType?: string },
   ) {
-    await this.requireBookingParty(id, req.user.id);
+    const booking = await this.requireBookingParty(id, req.user.id);
     if (!body.content?.trim()) throw new BadRequestException('Message content is required.');
-    return this.prisma.message.create({
+    const message = await this.prisma.message.create({
       data: {
         bookingId: id,
         senderId: req.user.id,
         content: body.content.trim(),
+        attachmentUrl: body.attachmentUrl?.trim() || undefined,
+        attachmentType: body.attachmentType?.trim() || undefined,
       },
     });
+    const recipientId = booking.renterId === req.user.id ? booking.spot.hostId : booking.renterId;
+    if (this.fcm) {
+      await this.fcm.sendNotification({
+        userId: recipientId,
+        title: 'New booking message',
+        body: body.attachmentUrl?.trim() ? 'A message with an attachment was sent.' : body.content.trim(),
+        bookingId: id,
+        type: 'MESSAGE_RECEIVED',
+        route: `/bookings/${id}/chat`,
+        data: { messageId: message.id },
+      });
+    }
+    return message;
   }
 
   @Get('bookings/:id/messages')
@@ -239,6 +287,10 @@ export class BookingsController {
     @Param('id') id: string,
   ) {
     await this.requireBookingParty(id, req.user.id);
+    await this.prisma.message.updateMany({
+      where: { bookingId: id, senderId: { not: req.user.id }, readAt: null },
+      data: { readAt: new Date() },
+    });
     return this.prisma.message.findMany({
       where: { bookingId: id },
       orderBy: { createdAt: 'asc' },
@@ -254,6 +306,28 @@ export class BookingsController {
       include: { spot: true },
     });
     if (!booking) throw new BadRequestException('Booking not found');
+    await this.assertNotBlocked(userId, booking.renterId, booking.spot.hostId);
     return booking;
+  }
+
+  private optionalRating(value: number | undefined, label: string) {
+    if (value == null) return undefined;
+    const rating = Number(value);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new BadRequestException(`${label} must be between 1 and 5.`);
+    return rating;
+  }
+
+  private async assertNotBlocked(actorId: string, renterId: string, hostId: string) {
+    const otherId = actorId === renterId ? hostId : renterId;
+    const block = await this.prisma.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: actorId, blockedId: otherId },
+          { blockerId: otherId, blockedId: actorId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (block) throw new BadRequestException('This user interaction is blocked.');
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -306,6 +307,7 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                               final review = reviews[index];
                               final reviewer = Map<String, dynamic>.from(review['fromUser'] as Map? ?? {});
                               final reviewerName = reviewer['name'] ?? 'Anonymous';
+                              final tags = List.from(review['tags'] as List? ?? const []);
                               final dateStr = review['createdAt'] != null
                                   ? DateTime.parse(review['createdAt'] as String).toLocal().toString().split(' ').first
                                   : '';
@@ -344,6 +346,19 @@ class _SpotDetailPageState extends State<SpotDetailPage> {
                                       Text(
                                         review['comment'].toString(),
                                         style: TextStyle(color: Pb.ink.withOpacity(0.8), fontSize: 13, height: 1.3),
+                                      ),
+                                    ],
+                                    if (tags.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: tags
+                                            .map((tag) => Chip(
+                                                  visualDensity: VisualDensity.compact,
+                                                  label: Text(tag.toString().replaceAll('_', ' ')),
+                                                ))
+                                            .toList(),
                                       ),
                                     ],
                                     const SizedBox(height: 8),
@@ -668,24 +683,61 @@ class _CheckInPageState extends State<CheckInPage> {
   Future<void> _dispute() async {
     final i = I18n(session.bn);
     final notesController = TextEditingController();
+    final evidenceController = TextEditingController();
+    String category = 'ACCESS_PROBLEM';
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(i.t('Raise Dispute / Flag Spot', 'অভিযোগ দায়ের')),
-        content: TextField(
-          controller: notesController,
-          maxLines: 3,
-          decoration: InputDecoration(hintText: i.t('Write issue details...', 'অভিযোগের বিবরণ লিখুন...')),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(i.t('Raise Dispute / Flag Spot', 'অভিযোগ দায়ের')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: category,
+                decoration: const InputDecoration(labelText: 'Category'),
+                items: const [
+                  DropdownMenuItem(value: 'SAFETY', child: Text('Safety')),
+                  DropdownMenuItem(value: 'HARASSMENT', child: Text('Harassment')),
+                  DropdownMenuItem(value: 'MISLEADING_LISTING', child: Text('Misleading listing')),
+                  DropdownMenuItem(value: 'NO_SHOW', child: Text('No-show')),
+                  DropdownMenuItem(value: 'ACCESS_PROBLEM', child: Text('Access problem')),
+                  DropdownMenuItem(value: 'PAYMENT', child: Text('Payment')),
+                ],
+                onChanged: (v) => setDialogState(() => category = v ?? category),
+              ),
+              TextField(
+                controller: notesController,
+                maxLines: 3,
+                decoration: InputDecoration(hintText: i.t('Write issue details...', 'অভিযোগের বিবরণ লিখুন...')),
+              ),
+              TextField(
+                controller: evidenceController,
+                decoration: const InputDecoration(labelText: 'Evidence URL'),
+                keyboardType: TextInputType.url,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(i.t('Cancel', 'বাতিল'))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(i.t('Submit', 'জমা দিন'))),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(i.t('Cancel', 'বাতিল'))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(i.t('Submit', 'জমা দিন'))),
-        ],
       ),
     );
     if (confirm != true || notesController.text.trim().isEmpty) return;
     try {
       await session.api.post('/bookings/${widget.bookingId}/disputes', {'notes': notesController.text.trim()});
+      final spotId = b?['spotId'] ?? b?['spot']?['id'];
+      if (spotId != null) {
+        await session.api.post('/reports', {
+          'targetType': 'SPOT',
+          'targetId': spotId,
+          'category': category,
+          'reason': notesController.text.trim(),
+          'evidenceUrls': [if (evidenceController.text.trim().isNotEmpty) evidenceController.text.trim()],
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dispute raised. Admin will review.')));
         _load();
@@ -698,6 +750,10 @@ class _CheckInPageState extends State<CheckInPage> {
   Future<void> _leaveReview() async {
     final i = I18n(session.bn);
     int selectedRating = 5;
+    int spotRating = 5;
+    int hostRating = 5;
+    int renterRating = 5;
+    final tags = <String>{};
     final commentController = TextEditingController();
     await showDialog(
       context: context,
@@ -721,6 +777,19 @@ class _CheckInPageState extends State<CheckInPage> {
                   );
                 }),
               ),
+              _ratingPicker('Spot', spotRating, (v) => setDialogState(() => spotRating = v)),
+              _ratingPicker('Host', hostRating, (v) => setDialogState(() => hostRating = v)),
+              _ratingPicker('Renter', renterRating, (v) => setDialogState(() => renterRating = v)),
+              Wrap(
+                spacing: 8,
+                children: ['easy_access', 'accurate_location', 'safe', 'clean', 'responsive_host'].map((tag) {
+                  return FilterChip(
+                    label: Text(tag.replaceAll('_', ' ')),
+                    selected: tags.contains(tag),
+                    onSelected: (selected) => setDialogState(() => selected ? tags.add(tag) : tags.remove(tag)),
+                  );
+                }).toList(),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: commentController,
@@ -738,6 +807,10 @@ class _CheckInPageState extends State<CheckInPage> {
                   await session.api.post('/bookings/${widget.bookingId}/reviews', {
                     'toUserId': targetUser,
                     'rating': selectedRating,
+                    'spotRating': spotRating,
+                    'hostRating': hostRating,
+                    'renterRating': renterRating,
+                    'tags': tags.toList(),
                     'comment': commentController.text.trim(),
                   });
                   if (ctx.mounted) Navigator.pop(ctx);
@@ -754,6 +827,42 @@ class _CheckInPageState extends State<CheckInPage> {
         ),
       ),
     );
+  }
+
+  Widget _ratingPicker(String label, int value, ValueChanged<int> onChanged) {
+    return Row(
+      children: [
+        SizedBox(width: 58, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+        ...List.generate(5, (index) {
+          final starVal = index + 1;
+          return IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(starVal <= value ? Icons.star_rounded : Icons.star_border_rounded, color: Pb.yellowDeep),
+            onPressed: () => onChanged(starVal),
+          );
+        }),
+      ],
+    );
+  }
+
+  Future<void> _blockOtherUser() async {
+    final otherId = session.isHost ? b?['renterId'] : b?['spot']?['hostId'];
+    if (otherId == null) return;
+    final reason = TextEditingController();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block user'),
+        content: TextField(controller: reason, decoration: const InputDecoration(labelText: 'Reason'), maxLines: 2),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block')),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await session.api.post('/blocked-users/$otherId', {'reason': reason.text.trim()});
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('User blocked.')));
   }
 
   Future<void> _simulateGeofencing() async {
@@ -835,6 +944,12 @@ class _CheckInPageState extends State<CheckInPage> {
             OutlinedButton(
               onPressed: _dispute,
               child: Text(i.t('Raise Dispute', 'অভিযোগ দায়ের')),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _blockOtherUser,
+              icon: const Icon(Icons.block),
+              label: const Text('Block user'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
@@ -925,6 +1040,12 @@ class _CheckInPageState extends State<CheckInPage> {
                 ],
               ],
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _blockOtherUser,
+              icon: const Icon(Icons.block),
+              label: const Text('Block user'),
+            ),
             const SizedBox(height: 24),
             if (!isActive)
               YellowCta(label: i.t('I arrived — check in', 'চেক-ইন'), onPressed: () => _check('in')),
@@ -937,11 +1058,64 @@ class _CheckInPageState extends State<CheckInPage> {
   }
 }
 
-class SosPage extends StatelessWidget {
+class SosPage extends StatefulWidget {
   const SosPage({super.key});
+
+  @override
+  State<SosPage> createState() => _SosPageState();
+}
+
+class _SosPageState extends State<SosPage> {
+  Map<String, dynamic>? safety;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await session.api.get('/safety-center');
+      if (mounted) setState(() => safety = Map<String, dynamic>.from(res as Map));
+    } catch (_) {}
+  }
+
+  Future<void> _support() async {
+    final subject = TextEditingController(text: 'Safety support request');
+    final message = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Contact support'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: subject, decoration: const InputDecoration(labelText: 'Subject')),
+            TextField(controller: message, decoration: const InputDecoration(labelText: 'What happened?'), maxLines: 3),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    if (ok != true || message.text.trim().isEmpty) return;
+    await session.api.post('/support-tickets', {
+      'subject': subject.text.trim(),
+      'message': message.text.trim(),
+      'priority': 'HIGH',
+    });
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Support ticket created.')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final i = I18n(session.bn);
+    final contacts = List<Map<String, dynamic>>.from(
+      (safety?['emergencyContacts'] as List? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
     return Scaffold(
       backgroundColor: const Color(0xFFB71C1C),
       appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white, title: Text(i.sos)),
@@ -951,9 +1125,27 @@ class SosPage extends StatelessWidget {
           children: [
             Text(i.t('Emergency', 'জরুরি'), style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
-            const Text('Bangladesh Police 999\nFire 199\nParkBangla safety: tell your host and flag the booking in-app.',
-                style: TextStyle(color: Colors.white, height: 1.5, fontSize: 16), textAlign: TextAlign.center),
+            if (contacts.isEmpty)
+              const Text('Bangladesh emergency service 999\nParkBangla safety: flag the booking in-app.',
+                  style: TextStyle(color: Colors.white, height: 1.5, fontSize: 16), textAlign: TextAlign.center)
+            else
+              ...contacts.map(
+                (contact) => ListTile(
+                  textColor: Colors.white,
+                  iconColor: Colors.white,
+                  leading: const Icon(Icons.local_phone),
+                  title: Text('${contact['label']}'),
+                  subtitle: Text('${contact['value']}', style: const TextStyle(color: Colors.white70)),
+                ),
+              ),
             const Spacer(),
+            OutlinedButton.icon(
+              onPressed: _support,
+              icon: const Icon(Icons.support_agent),
+              label: const Text('Contact ParkBangla support'),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white)),
+            ),
+            const SizedBox(height: 12),
             YellowCta(label: i.t('Close', 'বন্ধ'), onPressed: () => Navigator.pop(context)),
           ],
         ),
@@ -1125,6 +1317,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   List messages = [];
   final content = TextEditingController();
+  final attachment = TextEditingController();
   Timer? _timer;
   bool loading = true;
 
@@ -1139,6 +1332,7 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _timer?.cancel();
     content.dispose();
+    attachment.dispose();
     super.dispose();
   }
 
@@ -1146,6 +1340,7 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final res = await session.api.get('/bookings/${widget.bookingId}/messages');
       setState(() => messages = res as List);
+      session.fetchUnreadCount();
     } catch (_) {}
     if (mounted) setState(() => loading = false);
   }
@@ -1154,16 +1349,24 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final res = await session.api.get('/bookings/${widget.bookingId}/messages');
       if (mounted) setState(() => messages = res as List);
+      session.fetchUnreadCount();
     } catch (_) {}
   }
 
   Future<void> _send() async {
     if (content.text.trim().isEmpty) return;
     final text = content.text.trim();
+    final attachmentUrl = attachment.text.trim();
     content.clear();
+    attachment.clear();
     try {
-      await session.api.post('/bookings/${widget.bookingId}/messages', {'content': text});
+      await session.api.post('/bookings/${widget.bookingId}/messages', {
+        'content': text,
+        if (attachmentUrl.isNotEmpty) 'attachmentUrl': attachmentUrl,
+        if (attachmentUrl.isNotEmpty) 'attachmentType': 'url',
+      });
       _loadSilent();
+      session.fetchUnreadCount();
     } catch (_) {}
   }
 
@@ -1185,6 +1388,7 @@ class _ChatPageState extends State<ChatPage> {
                         itemBuilder: (ctx, idx) {
                           final msg = Map<String, dynamic>.from(messages[idx] as Map);
                           final mine = msg['senderId'] == session.id;
+                          final attachmentUrl = msg['attachmentUrl']?.toString();
                           return Align(
                             alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
                             child: Container(
@@ -1195,9 +1399,35 @@ class _ChatPageState extends State<ChatPage> {
                                 borderRadius: BorderRadius.circular(16),
                                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4)],
                               ),
-                              child: Text(
-                                '${msg['content']}',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${msg['content']}',
+                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  if (attachmentUrl != null && attachmentUrl.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    InkWell(
+                                      onTap: () => launchUrl(Uri.parse(attachmentUrl)),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.attach_file, size: 16),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              attachmentUrl,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(decoration: TextDecoration.underline, fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           );
@@ -1211,9 +1441,9 @@ class _ChatPageState extends State<ChatPage> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-                    child: TextField(
-                      controller: content,
-                      onSubmitted: (_) => _send(),
+                  child: TextField(
+                    controller: content,
+                    onSubmitted: (_) => _send(),
                       decoration: InputDecoration(
                         hintText: i.t('Type a message...', 'বার্তা লিখুন...'),
                         border: InputBorder.none,
@@ -1223,6 +1453,11 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _attach,
+                  icon: const Icon(Icons.attach_file),
+                  tooltip: i.t('Attach link', 'লিংক যুক্ত করুন'),
+                ),
                 IconButton(
                   onPressed: _send,
                   icon: const Icon(Icons.send_rounded, color: Pb.yellowDeep),
@@ -1234,6 +1469,26 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _attach() async {
+    final draft = TextEditingController(text: attachment.text);
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Attachment link'),
+        content: TextField(
+          controller: draft,
+          decoration: const InputDecoration(labelText: 'Photo or evidence URL'),
+          keyboardType: TextInputType.url,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved == true) attachment.text = draft.text.trim();
   }
 }
 

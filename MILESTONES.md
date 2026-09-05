@@ -284,6 +284,8 @@ Manual QA:
 
 Goal: give operations enough control to run the marketplace.
 
+Status: completed for the current operations prototype. Production-grade admin permission hardening, payment-provider reconciliation, and a richer case-management UI can continue in later production readiness work.
+
 Must do:
 - Add searchable tables for users, spots, bookings, transactions, disputes, reports, and messages.
 - Add admin detail pages for user, spot, booking, and dispute.
@@ -299,9 +301,45 @@ Acceptance:
 - Every admin action is auditable.
 - Disputes can be resolved with documented evidence and outcome.
 
+Completed implementation:
+- Added admin role levels on users while preserving the existing `isAdmin` gate for compatibility.
+- Added persistent admin audit logs for admin mutations.
+- Added moderation notes that can attach to users, spots, bookings, disputes, reports, or other target records.
+- Added support ticket records and a user-facing ticket creation endpoint.
+- Added dispute evidence records so ops can document files or notes during resolution.
+- Added persistent risk flags on users and spots.
+- Added computed risk flags for repeated renter cancellations, repeated disputes, frequent reporting, negative wallet balance, and duplicate spot review.
+- Expanded admin stats with open dispute and open support ticket counts.
+- Added searchable admin endpoints for users, spots, bookings, transactions, disputes, reports, messages, and support tickets.
+- Added admin detail endpoints for users, spots, bookings, and disputes, including linked operational context.
+- Added manual booking cancellation/refund adjustment tooling with wallet ledger, refund transaction, reason storage, and audit log entry.
+- Added admin endpoints for updating support tickets, dispute evidence, moderation notes, risk flags, ID verification, spot verification, and admin role assignment.
+- Rebuilt the Flutter admin app into a multi-section ops console with search, detail dialogs, risk flag editing, moderation notes, ticket updates, dispute evidence, and manual cancel/refund actions.
+
+Manual QA:
+- Log in to the admin app with the demo admin. Expected: the dashboard opens and shows users, active spots, bookings, commission, open disputes, and open tickets.
+- Search by a known phone number. Expected: Users, bookings, and other matching sections reload with filtered results.
+- Open a user detail row. Expected: a detail dialog shows user profile, vehicles, spots, recent bookings, wallet ledger, notes, audit log, and computed risk flags.
+- Add a moderation note to a user. Expected: the note saves, and reopening user detail shows the new note.
+- Edit a user's risk flags with comma-separated values. Expected: flags persist and appear on reload.
+- Open a spot detail row. Expected: host, availability, blocks, recent bookings, notes, audit log, and duplicate-related risk information are visible.
+- Verify a spot from admin. Expected: spot status becomes `VERIFIED`, checklist/notes are saved, and an audit log entry is created.
+- Reject a spot from admin. Expected: spot status becomes `REJECTED` with a rejection reason and an audit log entry.
+- Open a booking detail row. Expected: renter, host spot, transactions, disputes, messages, moderation notes, and audit logs are visible.
+- Use Cancel/refund on a booking with a reason and refund amount. Expected: booking becomes cancelled, renter wallet increases by refund amount, wallet ledger and refund transaction are created, and the booking audit log records the action.
+- Try Cancel/refund with an empty reason through the API. Expected: request is rejected.
+- Add dispute evidence with either notes or a file URL. Expected: evidence is saved and appears in dispute detail.
+- Resolve a dispute with refund. Expected: dispute status changes, resolution is stored, refund behavior runs, and an audit log is created.
+- Create a support ticket from the API/mobile account using `POST /support-tickets`. Expected: ticket appears in the admin Tickets section.
+- Update a support ticket's status, priority, and resolution in admin. Expected: ticket changes persist and an audit entry is written.
+- Open Messages and Transactions sections. Expected: ops can scan recent records and search by booking/user/message text where applicable.
+- Change an admin role using `PATCH /admin/users/:id/admin-role`. Expected: role updates to one of `USER`, `SUPPORT`, `OPS`, or `SUPER_ADMIN`, and the action is audited.
+
 ## Milestone 8: Notifications And Communication
 
 Goal: keep renters and hosts informed in real time.
+
+Status: completed for the current prototype. Production FCM credentials, SMS/WhatsApp fallback providers, and background worker scheduling can be finalized later.
 
 Must do:
 - Add notification preference settings.
@@ -316,9 +354,46 @@ Acceptance:
 - Tapping a notification opens the correct screen.
 - Missed push notifications are still visible in-app.
 
+Completed implementation:
+- Added notification preference storage for push, in-app notifications, and disabled notification types.
+- Added notification preference API endpoints for reading and updating user settings.
+- Extended persisted notifications with route and JSON data metadata for deeper app navigation.
+- Updated FCM payloads to include booking ID, notification type, route, and optional data.
+- FCM delivery now respects push preferences while still using persisted notifications as in-app fallback when enabled.
+- Added fetch-time booking reminders for upcoming bookings, pending approval requests, and active checkout reminders.
+- Added unread message tracking with message `readAt` state.
+- Added unread message count API for booking participants.
+- Booking chat now marks received messages as read when the chat is opened.
+- Sending a booking message now notifies the other participant with an in-app/push notification.
+- Chat messages now support attachment URL/type fields for photo or evidence links.
+- Mobile notification taps now route to booking detail or directly to booking chat when notification metadata requests it.
+- Mobile shell now shows an unread chat badge on the Bookings tab.
+- Mobile notifications screen now includes a preferences dialog.
+- Mobile chat can attach and open URL-based evidence/photo links.
+- Backend regression tests cover preference normalization, unread-message count scoping, and message validation.
+
+Manual QA:
+- Open the mobile app and go to Notifications. Expected: existing notifications load and the settings/tune button is visible.
+- Open notification preferences, disable push, save, reopen preferences. Expected: push remains disabled.
+- Disable one notification type such as `MESSAGE_RECEIVED`, save, reopen preferences. Expected: the disabled type remains unchecked.
+- Create a booking notification while in-app notifications are enabled. Expected: it appears in Notifications even if FCM delivery is unavailable.
+- Tap a booking notification. Expected: the booking/check-in screen opens.
+- Send a chat message from renter to host. Expected: host receives a `MESSAGE_RECEIVED` notification and Bookings tab unread badge increases.
+- Tap the chat notification. Expected: app opens directly to that booking's chat.
+- Open the chat as the recipient. Expected: messages load and the unread badge decreases after refresh.
+- Send a chat message with an attachment URL. Expected: recipient sees the message plus an attachment link.
+- Tap the attachment link. Expected: the URL opens with the device/browser handler.
+- Create or keep a confirmed booking that starts within 24 hours, then open Notifications. Expected: an upcoming booking reminder is created once.
+- Keep a pending booking request, then open Notifications as host/renter. Expected: pending approval reminder appears once.
+- Keep an active booking, then open Notifications. Expected: checkout reminder appears once.
+- Turn off in-app notifications, then fetch notifications. Expected: new reminder rows are not created while in-app notifications are disabled.
+- Try sending an empty chat message with only an attachment URL via API. Expected: rejected because message content is required.
+
 ## Milestone 9: Reviews, Reputation, And Safety
 
 Goal: build marketplace accountability.
+
+Status: completed for the current prototype. Production safety operations can later add verified emergency integrations, automated enforcement workflows, and richer trust analytics.
 
 Must do:
 - Allow reviews only after completed bookings.
@@ -334,9 +409,48 @@ Acceptance:
 - Safety reports are actionable by admin.
 - Bad actors can be restricted or removed.
 
+Completed implementation:
+- Reviews still require completed bookings and valid booking participation.
+- Reviews now support separate spot, host, and renter rating dimensions.
+- Reviews now support structured tags such as easy access, accurate location, safe, clean, and responsive host.
+- Spot ratings are aggregated separately onto parking spots.
+- User ratings continue to aggregate onto the reviewed participant.
+- Reports now require a target and reason and support category plus evidence URLs.
+- Added report status and action outcome fields so safety reports can be closed with a documented result.
+- Added user block records with block/unblock APIs.
+- Booking creation, booking messages, reviews, and disputes now reject interactions when either participant has blocked the other.
+- Added a safety-center API with emergency contacts, report categories, and support escalation metadata.
+- Mobile review dialog now collects structured rating dimensions and tags.
+- Mobile dispute/report flow now captures category and evidence URL, then creates both dispute and actionable report records.
+- Mobile booking detail now includes a block-user action.
+- Mobile safety center now loads emergency contacts from the API and can create high-priority support tickets.
+- Admin reports tab now shows category/status and can record a report action, flag the target, or deactivate a misleading spot.
+- Cancellation patterns now add conservative admin-review risk flags for renter cancellation abuse and host cancellation review.
+- Backend tests cover categorized reports, self-block prevention, and blocked booking-party interactions.
+
+Manual QA:
+- Complete a booking, then open its detail screen. Expected: Leave a Review is available only after completion.
+- Submit a review with spot/host/renter ratings and tags. Expected: review saves and tags appear on spot detail.
+- Try reviewing before booking completion. Expected: backend rejects it.
+- Try reviewing a user who is not the other booking participant. Expected: backend rejects it.
+- Open a spot detail with reviews. Expected: average rating, review count, comments, and structured tags are visible.
+- Raise a dispute from booking detail with category and evidence URL. Expected: dispute is created and a categorized report is also created.
+- Open admin Reports. Expected: report shows category/status/reason.
+- Use report Action in admin with risk flag enabled. Expected: report is resolved and target receives the category as a risk flag.
+- Use report Action on a misleading spot with Deactivate spot enabled. Expected: spot becomes inactive.
+- Block the other booking participant from booking detail. Expected: block succeeds.
+- After blocking, try sending a booking message to the blocked participant. Expected: rejected.
+- After blocking, try creating a new booking between the same renter/host. Expected: rejected.
+- Unblock via `DELETE /blocked-users/:id`. Expected: interaction can proceed again if other validations pass.
+- Open Safety Center. Expected: emergency contacts load from backend.
+- Create a support request from Safety Center. Expected: a high-priority support ticket appears in admin.
+- Cancel bookings repeatedly as renter/host in test data. Expected: corresponding cancellation review risk flags are added after threshold.
+
 ## Milestone 10: Production Readiness
 
 Goal: prepare for public launch.
+
+Status: completed for the current pre-production baseline. Final payment/OTP provider integration, legal review, and real production monitoring accounts remain final-stage work.
 
 Must do:
 - Add CI for API tests, API build, Flutter analyze, and Flutter tests.
@@ -353,6 +467,38 @@ Acceptance:
 - The app can be deployed repeatedly without manual database risk.
 - Production incidents can be diagnosed from logs/metrics.
 - Legal and privacy basics are in place.
+
+Completed implementation:
+- Added GitHub CI for API Prisma validation, API build, API tests, mobile Flutter analyze/tests, and admin Flutter analyze/tests.
+- Added a Prisma baseline migration and switched production deployment to migration deploy.
+- Added deployment script guidance for existing Render databases previously created with `prisma db push`.
+- Added API scripts for Prisma generate/validate, migration deploy/status, database backup, and database restore.
+- Added PowerShell backup and restore scripts using `pg_dump` and `pg_restore`.
+- Added structured JSON request logging with sensitive header redaction.
+- Added process-level unhandled rejection and uncaught exception logging.
+- Upgraded `/health` to check database connectivity and return environment/version/check timestamp.
+- Added Render production environment entries for `NODE_ENV`, `LOG_LEVEL`, and `SENTRY_DSN`.
+- Added operations documentation for environments, migrations, backups, restore testing, monitoring, and incident response.
+- Added policy drafts for privacy, terms, cancellation policy, host agreement, and data retention.
+- Added a smoke-load script for `/health` and search endpoint checks.
+- Updated README to use migrations and link production operations/policy docs.
+
+Manual QA:
+- Push a branch or open a PR. Expected: GitHub CI starts API, mobile, and admin jobs.
+- Check API CI. Expected: `npm ci`, Prisma generate/validate, build, and tests pass.
+- Check mobile/admin CI. Expected: `flutter pub get`, `flutter analyze`, and `flutter test` run.
+- Run `npm run migrate:status` in `apps/api` against a local database. Expected: migration status is visible.
+- On a fresh local database, run `npm run migrate:deploy`, then `npm run seed`. Expected: schema deploys and seed succeeds.
+- For the existing Render database, run the one-time baseline command from `docs/OPERATIONS.md` before deploying the Render migration change. Expected: baseline is marked applied and future deploys can use migrations.
+- Deploy API to Render. Expected: build runs `npm run prisma:generate`, `npm run migrate:deploy`, and `npm run build` successfully.
+- Visit `/health`. Expected: response includes `ok=true`, `database=up`, environment, version, and checkedAt.
+- Temporarily break database access in a non-production environment. Expected: `/health` returns service unavailable with `database=down`.
+- Make a normal API request. Expected: logs contain structured JSON with method, path, statusCode, and durationMs.
+- Confirm logs do not include authorization or cookie values unless explicitly enabling local header logging.
+- Run `npm run backup:db` with `DATABASE_URL` set and PostgreSQL client tools installed. Expected: a timestamped `.dump` file is created.
+- Restore that dump into a disposable test database with `npm run restore:db -- <dump-file>`. Expected: restore succeeds and app can query restored data.
+- Run `scripts/smoke-load.ps1` against local or Render API. Expected: health/search requests return status and latency lines.
+- Review `docs/POLICIES.md`. Expected: privacy, terms, cancellation, host agreement, and data retention drafts exist for legal review.
 
 ## Final Stage: Payment And Production OTP
 

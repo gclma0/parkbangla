@@ -11,7 +11,7 @@ docker compose up -d
 cd apps/api
 copy .env.example .env   # Windows
 npm install
-npx prisma db push
+npm run migrate:deploy
 npm run seed
 npm run start:dev
 # API listens on http://localhost:3001 (port 3000 is often taken)
@@ -30,3 +30,10 @@ flutter run -d chrome
 ```
 
 Demo OTP is always `123456`. Demo phones: `01710000001` (renter), `01710000002` (host), `01710000009` (admin).
+
+## Production Notes
+
+- Deployment uses Prisma migrations through `npm run migrate:deploy`.
+- The existing Render database must be baselined once if it was previously created with `prisma db push`; see [docs/OPERATIONS.md](docs/OPERATIONS.md).
+- Legal and launch policy drafts are in [docs/POLICIES.md](docs/POLICIES.md).
+- CI runs API validation/build/tests plus Flutter analyze/tests for mobile and admin.

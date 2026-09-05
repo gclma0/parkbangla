@@ -3,7 +3,7 @@ services:
     name: parkbangla-api
     env: node
     rootDir: apps/api
-    buildCommand: npm install && npx prisma db push && npm run build
+    buildCommand: npm install && npm run prisma:generate && npm run migrate:deploy && npm run build
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
@@ -16,6 +16,12 @@ services:
         value: parkbangla-prod-secret-2026
       - key: DEMO_OTP
         value: "123456"
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: SENTRY_DSN
+        sync: false
 
 databases:
   - name: parkbangla-db

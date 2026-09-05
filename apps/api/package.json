@@ -6,6 +6,12 @@
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --transpile-only src/main.ts",
     "build": "tsc -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "migrate:deploy": "node scripts/deploy-db.mjs",
+    "migrate:status": "prisma migrate status",
+    "backup:db": "powershell -ExecutionPolicy Bypass -File scripts/backup-db.ps1",
+    "restore:db": "powershell -ExecutionPolicy Bypass -File scripts/restore-db.ps1",
     "seed": "tsx prisma/seed.ts",
     "test": "tsx --test src/**/*.spec.ts"
   },

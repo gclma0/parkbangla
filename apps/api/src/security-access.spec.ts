@@ -58,6 +58,9 @@ describe('booking access control', () => {
           throw new Error('review should not be created');
         },
       },
+      userBlock: {
+        findFirst: async () => null,
+      },
     };
     const controller = new BookingsController({} as never, prisma as never);
 
